@@ -5,12 +5,12 @@ export class BodyTracker extends EventTarget {
   constructor(video,canvas) { super();this.video=video;this.canvas=canvas; }
   #emit(type,detail) {this.dispatchEvent(new CustomEvent(type,{detail}));}
   async start() {
-    this.stop();const epoch=this.#epoch;this.running=true;this.#emit('state','Getting the camera ready… the first download may take a minute.');
+    this.stop();const epoch=this.#epoch;this.running=true;this.#emit('state','Getting the camera ready… the first download may take a few minutes.');
     try {
       const worker=this.#worker=new Worker(new URL('./tracker-worker.js',import.meta.url));
       await new Promise((resolve,reject)=>{
         const cleanup=()=>{clearTimeout(timer);this.#cancelLoad=null;};
-        const timer=setTimeout(()=>{cleanup();reject(new Error('Camera tools took too long to download. Check your connection and try again.'));},120000);
+        const timer=setTimeout(()=>{cleanup();reject(new Error('Camera tools took too long to download. Check your connection and try again.'));},300000);
         this.#cancelLoad=()=>{cleanup();resolve();};
         worker.onerror=e=>{cleanup();reject(new Error(e.message || 'Tracking worker failed'));};
         worker.onmessage=({data})=>{

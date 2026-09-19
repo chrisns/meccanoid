@@ -14,7 +14,7 @@ for(const [name,family,axis] of [['fraunces','Fraunces','full'],['hanken-grotesk
  for(const style of name==='fraunces'?['normal','italic']:['normal']){
   const file=`${name}-latin-${axis}-${style}.woff2`;
   await cp(`node_modules/@fontsource-variable/${name}/files/${file}`,`dist/vendor/design/fonts/${file}`);
-  faces+=`@font-face{font-family:'${family}';font-style:${style};font-weight:100 900;font-display:swap;src:url('./fonts/${file}') format('woff2');}\n`;
+  faces+=`@font-face{font-family:'${family}';font-style:${style};font-weight:${style==='italic'?'400 700':'400 900'};font-display:swap;src:url('./fonts/${file}') format('woff2');}\n`;
  }
  await cp(`node_modules/@fontsource-variable/${name}/LICENSE`,`dist/vendor/design/fonts/${name}-LICENSE.txt`);
 }
@@ -24,3 +24,8 @@ await cp('node_modules/@chrisns/design/LICENSE','dist/vendor/design/LICENSE.txt'
 await cp('node_modules/@mediapipe/tasks-vision/README.md','dist/vendor/mediapipe/README.md');
 await writeFile('dist/.nojekyll','');
 console.log('Built dist: app, CNS tokens, local fonts, camera runtime and model.');
+
+await mkdir('dist/vendor/three',{recursive:true});
+for(const file of ['three.module.js','three.core.js'])await cp(`node_modules/three/build/${file}`,`dist/vendor/three/${file}`);
+await cp('node_modules/three/examples/jsm/controls/OrbitControls.js','dist/vendor/three/OrbitControls.js');
+await cp('node_modules/three/LICENSE','dist/vendor/three/LICENSE.txt');

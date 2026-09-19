@@ -1,3 +1,4 @@
+import { JOINT_KEYS } from './keyboard.js';
 import { JOINTS, defaultCalibration, validateCalibration, calibratedPose, clamp } from './joints.js';
 import { MotionController, validateSequence } from './motion.js';
 import { BodyTracker } from './tracker.js';
@@ -15,7 +16,7 @@ async function loadFile(input) {
   if(file.size>1024*1024)throw new Error('JSON file must be smaller than 1 MB');
   return JSON.parse(await file.text());
 }
-export function setupStudio({robot,log,run,refresh}) {
+export function setupStudio({robot,log,run,refresh,preview}) {
   const motion=new MotionController(robot),tracker=new BodyTracker($('camera'),$('landmarks')),diagnostics=new DiagnosticSession(robot);
   let calibration;try{calibration=validateCalibration(read('meccanoid.calibration',defaultCalibration()));}catch{calibration=defaultCalibration();}
   let saved=read('meccanoid.poses',[]);if(!Array.isArray(saved))saved=[];
@@ -46,6 +47,7 @@ export function setupStudio({robot,log,run,refresh}) {
   function assertFree() {if(capturing||captureStarting)throw new Error('Finish range capture before using other controls');if(diagnosticMode)throw new Error('Stop the system test before using other controls');}
   function assertPose(){if(!motion.current)throw new Error('Read the current robot pose first');}
   function renderPose() {
+    if(!(tracker.running&&location.hash==='#copy'))preview?.setPose(motion.active?motion.target:motion.current,calibration);
     cards.forEach((card,i)=>{
       const value=motion.current?.[calibration[i].slot];
       card.output.textContent=value??'—';card.slider.min=calibration[i].min;card.slider.max=calibration[i].max;
@@ -77,7 +79,7 @@ export function setupStudio({robot,log,run,refresh}) {
     const toolbar=document.createElement('div');toolbar.className='toolbar';
     const buttons=[];
     for(const direction of [-1,1]){
-      const button=document.createElement('button');button.textContent=direction<0?'−4':'＋4';button.title=`Small nudge: ${joint.label}`;
+      const button=document.createElement('button');const shortcut=direction<0?JOINT_KEYS[i].minus:JOINT_KEYS[i].plus;button.textContent=`${shortcut.toUpperCase()} ${direction<0?'−4':'＋4'}`;button.dataset.key=shortcut;button.setAttribute('aria-keyshortcuts',shortcut.toUpperCase());button.title=`Small nudge: ${joint.label}`;
       button.onclick=()=>run(()=>{
         assertFree();pauseMirror();stopReplay();assertPose();
         const c=calibration[i],base=motion.active?motion.target:motion.current;
@@ -207,13 +209,14 @@ export function setupStudio({robot,log,run,refresh}) {
   for(const joint of JOINTS){const row=document.createElement('div');row.className='tracking-row';const name=document.createElement('span');name.textContent=joint.label;const meter=document.createElement('meter');meter.id=`signal-${joint.key}`;meter.min=-1;meter.max=1;meter.value=0;row.append(name,meter);$('trackingBars').append(row);}
   tracker.addEventListener('frame',({detail})=>{
     lastFrame=performance.now();const raw=bodySignals(detail.world,detail.landmarks);signals=mirrorSignals(raw,$('mirrorSides').checked);
-    if(!signals){$('cameraState').textContent='Tracking lost — show shoulders, hips, elbows and wrists';smoothed=null;if(mirroring){pauseMirror('Tracking lost — mirroring stopped');motion.cancel();if(robot.connected)run(()=>robot.stop());}state();return;}
+    if(!signals){preview?.trackingLost();$('cameraState').textContent='Tracking lost — show shoulders, hips, elbows and wrists';smoothed=null;if(mirroring){pauseMirror('Tracking lost — mirroring stopped');motion.cancel();if(robot.connected)run(()=>robot.stop());}state();return;}
     $('cameraState').textContent='Body tracked · camera preview';
     if(neutralCaptureAt!==null && performance.now()>=neutralCaptureAt) {
       neutral={...signals};smoothed=null;neutralCaptureAt=null;
       $('neutralStatus').textContent='Neutral stance captured. Start mirroring when the robot is ready.';
     }
     const relative=neutral?relativeSignals(signals,neutral):signals;
+    if(location.hash==='#copy')preview?.setSignals(relative,calibration,Number($('mirrorGain').value)/100);
     for(const joint of JOINTS)$(`signal-${joint.key}`).value=relative[joint.key]??0;
     if(mirroring){
       try {
@@ -307,5 +310,13 @@ export function setupStudio({robot,log,run,refresh}) {
     renderSaved();
   }
   renderSaved();renderTest();renderBank();state();
-  return {state,halt,async syncPose(){await motion.sync();renderPose();state();},async navigate(){cancelProducers();diagnostics.abort();diagnosticMode=false;if(robot.connected)await robot.stop();state();},async beforeManual(){assertFree();cancelProducers();motion.current=null;renderPose();await robot.stop();},get diagnostics(){return diagnostics;}};
+  return {state,halt,
+    async keyboardDrive(direction,valid){assertFree();await this.beforeManual();if(valid())await robot.moveDirection(direction,250);},
+    async keyboardNudge(deltas,valid){
+      assertFree();pauseMirror();stopReplay();if(!motion.current)await motion.sync();if(!valid())return;
+      const base=motion.active?motion.target:motion.current,pose=[...base];
+      const config=calibration.map((c,i)=>{if(deltas[i])pose[c.slot]=clamp(base[c.slot]+deltas[i],c.min,c.max);return {...c,enabled:Boolean(deltas[i])};});
+      motion.setTarget(pose,config);
+    },
+    async syncPose(){await motion.sync();renderPose();state();},async navigate(){cancelProducers();diagnostics.abort();diagnosticMode=false;if(robot.connected)await robot.stop();state();},async beforeManual(){assertFree();cancelProducers();motion.current=null;renderPose();await robot.stop();},get diagnostics(){return diagnostics;}};
 }

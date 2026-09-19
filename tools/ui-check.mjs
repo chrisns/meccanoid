@@ -14,6 +14,7 @@ try {
  await page.evaluate(()=>document.fonts.ready);
  assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--paper').trim()),'#F4EFE7','CNS tokens must load from the published artifact');
  assert(await page.evaluate(()=>document.fonts.check('900 64px Fraunces')),'Local display font must be available');
+ assert.deepEqual(await page.locator('.masthead .brand').evaluate(el=>({ink:getComputedStyle(el.querySelector('.brand-me')).color,dot:getComputedStyle(el.querySelector('.brand-dot')).backgroundColor,italic:getComputedStyle(el.querySelector('.brand-me')).fontStyle,flamingo:el.querySelector('.brand-flamingo').textContent})),{ink:'rgb(20, 17, 15)',dot:'rgb(229, 25, 127)',italic:'italic',flamingo:'🦩'});
  assert(await page.locator('#practiceBanner').isVisible());
  await page.getByRole('button',{name:'Red eyes',exact:true}).click();
  assert.equal(await page.getByRole('button',{name:'Red eyes',exact:true}).getAttribute('aria-pressed'),'true');

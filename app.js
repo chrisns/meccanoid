@@ -1,3 +1,6 @@
+import { RobotPreview } from './src/robot-preview.js';
+import { KeyboardControls, JOINT_KEYS } from './src/keyboard.js';
+import { JOINTS } from './src/joints.js';
 import { PracticeTransport } from './src/practice.js';
 import { setupShell } from './src/shell.js';
 import { setupStudio } from './src/studio.js';
@@ -7,6 +10,10 @@ const practice=new URLSearchParams(location.search).get('practice')==='1';
 const robot = practice?new Meccanoid(new PracticeTransport()):new Meccanoid();
 const entries = [];
 let studio;
+const preview=new RobotPreview($('robotPreview'),$('previewState'));
+$('resetView').onclick=()=>preview.resetView();
+robot.addEventListener('stop',()=>preview.stop());
+robot.addEventListener('state',()=>{if(!robot.connected)preview.stop();});
 function log(message) {
   entries.push(`${new Date().toISOString()}  ${message}`);
   if (entries.length > 1000) entries.shift();
@@ -34,7 +41,7 @@ async function run(action) {
   finally { state(); }
 }
 robot.addEventListener('state', e => { $('status').textContent = e.detail; log(e.detail); state(); });
-robot.addEventListener('tx', e => log(`TX submitted · ${protocol.hex(e.detail)}`));
+robot.addEventListener('tx', e => {log(`TX submitted · ${protocol.hex(e.detail)}`);preview.command(e.detail);});
 robot.addEventListener('notification', e => log(`RX ${protocol.hex(e.detail)}`));
 for (const event of ['notice', 'error']) robot.addEventListener(event, e => { log(e.detail); $('notice').textContent = e.detail; });
 $('connect').onclick = () => { $('connect').disabled = true; run(async () => {
@@ -71,15 +78,27 @@ const stop = () => { if (robot.connected) run(() => studio ? studio.halt() : rob
 $('stop').onclick = stop;
 $('globalStop').onclick = stop;
 $('driveMode').onchange=()=>{$('rawSpeed').hidden=$('driveMode').value!=='raw';};
-window.addEventListener('keydown', e => { if (e.code === 'Space' && !['INPUT','SELECT','BUTTON','TEXTAREA'].includes(e.target.tagName)) { e.preventDefault(); stop(); } });
 window.addEventListener('blur', () => { if (robot.connected) run(() => robot.arm(false)); });
 document.addEventListener('visibilitychange', () => { if (document.hidden && robot.connected) run(() => robot.arm(false)); });
 $('export').onclick = () => {
   const url = URL.createObjectURL(new Blob([entries.join('\n')],{type:'text/plain'}));
   const link = document.createElement('a'); link.href = url; link.download = 'meccanoid-session.log'; link.click(); setTimeout(() => URL.revokeObjectURL(url),1000);
 };
-studio = setupStudio({robot,log,run,refresh:state});
+studio = setupStudio({robot,log,run,refresh:state,preview});
 setupShell({robot,studio,run,practice});
+const keyboard=new KeyboardControls({
+  enabled:()=>robot.connected&&robot.armed,
+  drive:(direction,valid)=>studio.keyboardDrive(direction,valid),
+  nudge:(deltas,valid)=>studio.keyboardNudge(deltas,valid),
+  stop:()=>robot.connected?robot.stop():Promise.resolve(),halt:()=>studio.halt(),
+  report:error=>{log(`Keyboard: ${error.message}`);$('notice').textContent=error.message;},
+  onchange:held=>document.querySelectorAll('[data-key]').forEach(el=>el.classList.toggle('held-key',held.has(el.dataset.key))),
+});
+robot.addEventListener('armed',e=>{if(!e.detail)keyboard.clear();});
+robot.addEventListener('state',()=>{if(!robot.connected)keyboard.clear();});
+$('keyboardToggle').onclick=()=>{const open=$('keyboardHelp').hidden;$('keyboardHelp').hidden=!open;$('keyboardToggle').setAttribute('aria-expanded',String(open));};
+JOINTS.forEach((joint,i)=>{const row=document.createElement('div');const label=document.createElement('span');label.textContent=joint.label;
+ const keys=document.createElement('span');for(const [key,meaning] of [[JOINT_KEYS[i].minus,'−'],[JOINT_KEYS[i].plus,'+']]){const k=document.createElement('kbd');k.textContent=`${key.toUpperCase()} ${meaning}`;keys.append(k);}row.append(label,keys);$('keyboardJoints').append(row);});
 if (!navigator.bluetooth&&!practice) {$('connect').disabled=true;$('notice').textContent='To connect a real robot, open this page in Chrome on a Chromebook, Mac, Android, or Windows PC. You can still try practice mode and the camera.';}
 if(practice)run(async()=>{await robot.connect();await studio.syncPose();$('notice').textContent='You’re practising! Try the lights, moves, and jokes. Nothing here moves a real robot.';});
 log('Ready. No commands are sent until you connect.'); state();

@@ -3,10 +3,17 @@ const siteRoot=new URL('../',self.location.href);
 importScripts(new URL('vendor/mediapipe/vision_bundle.js',siteRoot).href);
 const { FilesetResolver, PoseLandmarker } = Vision;
 let detector;
+const received=new Map();let lastProgress=0;
 async function unpack(url) {
   const response=await fetch(url);
   if(!response.ok)throw new Error('A camera download failed. Please try again.');
-  return new Uint8Array(await new Response(response.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+  received.set(url,0);
+  const progress=new TransformStream({transform(chunk,controller){
+    received.set(url,received.get(url)+chunk.byteLength);
+    if(Date.now()-lastProgress>500){lastProgress=Date.now();const mb=[...received.values()].reduce((a,b)=>a+b,0)/1048576;self.postMessage({type:'progress',message:`Downloading camera tools… ${mb.toFixed(1)} MB received. Cancel any time.`});}
+    controller.enqueue(chunk);
+  }});
+  return new Uint8Array(await new Response(response.body.pipeThrough(progress).pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
 }
 self.onmessage=async ({data})=>{
   try {

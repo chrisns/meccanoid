@@ -17,6 +17,14 @@
 
 School-managed Chromebooks may need Bluetooth/camera permission from an administrator. Web Bluetooth requires HTTPS (provided by Pages), or localhost for development. [Chrome's supported platforms and permissions](https://developer.chrome.com/docs/capabilities/bluetooth).
 
+## See your robot move
+
+An interactive **3D G15KS-style robot** sits beside the controls. Drag to orbit or use Reset view. Its eight joints follow slider and keyboard targets; eye and chest colours follow light commands. Wheel commands spin the preview wheels. This is an approximate illustration, not measured mechanics or physical feedback.
+
+In **Copy me**, turn the camera on and stand back: the 3D robot follows your tracked arms and head even without Bluetooth or arming. Capture a neutral stance after the three-second countdown to centre your movements. The real robot still needs connection, arming and verified calibration before copying.
+
+**Keyboard:** tick Ready to move, then hold arrow keys to drive. Release to stop. Joint +/− pairs, in order: right elbow **Q/A**, right lift **W/S**, right shoulder **E/D**, left shoulder **R/F**, left lift **U/J**, left elbow **I/K**, head turn **O/L**, head tilt **P/;**. The on-page Keyboard keys guide shows every shortcut. **Esc** stops and disarms anywhere; **Space** does so outside text fields. Shortcuts pause while typing or adjusting a focused slider. Losing window focus disarms the robot.
+
 ## Five places to explore
 
 | Activity | What it does |
@@ -56,6 +64,7 @@ npm run build            # explicit public-file allowlist → dist/
 npx playwright install chromium
 CI=true npm run test:controls
 CI=true npm run test:browser
+CI=true npm run test:preview # keyboard, stop behaviour and 3D rendering
 CI=true npm run test:ui   # accessibility, responsive layouts, practice, screenshots
 ```
 

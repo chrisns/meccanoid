@@ -46,6 +46,7 @@ jobs:
           exit 1
       - run: npm run test:controls
       - run: npm run test:browser
+      - run: npm run test:preview
       - run: npm run test:ui
       - name: Save browser screenshots
         if: always()
