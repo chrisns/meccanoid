@@ -288,6 +288,7 @@ export function setupStudio({robot,log,run,refresh}) {
     $('syncPose').disabled=!robot.connected||diagnosticMode||teaching;$('neutralPose').disabled=!motion.current||diagnosticMode||teaching;
     $('savePose').disabled=!motion.current;
     $('cameraStart').disabled=cameraLoading||tracker.running;$('cameraStop').disabled=!tracker.running;
+    $('cameraStop').textContent=cameraLoading?'Cancel camera setup':'Camera off';
     $('humanNeutral').disabled=!tracker.running||cameraLoading;
     $('mirrorStart').disabled=!available||!motion.current||!neutral||!signals||mirroring;
     $('mirrorStop').disabled=!mirroring;

@@ -1,10 +1,14 @@
-import { cp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
+import { gzipSync } from 'node:zlib';
+import { cp, mkdir, readFile, writeFile, rm, readdir } from 'node:fs/promises';
 // Explicit allowlist: only the public browser app goes into the Pages artifact.
 await rm('dist',{recursive:true,force:true});
 await mkdir('dist/vendor/design/fonts',{recursive:true});
 for(const name of ['index.html','style.css','app.js','src','assets'])await cp(name,`dist/${name}`,{recursive:true});
 await mkdir('dist/vendor/mediapipe',{recursive:true});
 for(const name of ['vision_bundle.js','wasm'])await cp(`node_modules/@mediapipe/tasks-vision/${name}`,`dist/vendor/mediapipe/${name}`,{recursive:true});
+// Pages does not consistently compress binary responses; ship explicit gzip files.
+for(const name of await readdir('dist/vendor/mediapipe/wasm'))if(name.endsWith('.wasm')){const path=`dist/vendor/mediapipe/wasm/${name}`;await writeFile(`${path}.gz`,gzipSync(await readFile(path),{level:9}));}
+await writeFile('dist/assets/pose_landmarker_lite.task.gz',gzipSync(await readFile('assets/pose_landmarker_lite.task'),{level:9}));
 let faces='';
 for(const [name,family,axis] of [['fraunces','Fraunces','full'],['hanken-grotesk','Hanken Grotesk','wght'],['jetbrains-mono','JetBrains Mono','wght']]){
  for(const style of name==='fraunces'?['normal','italic']:['normal']){

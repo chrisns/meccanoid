@@ -1,19 +1,22 @@
 /** Local-only camera lifecycle; inference lives in a worker, away from Bluetooth/stop controls. */
 export class BodyTracker extends EventTarget {
   running=false;
-  #worker; #stream; #raf; #epoch=0; #busy=false; #last=0;
+  #worker; #stream; #raf; #epoch=0; #busy=false; #last=0; #cancelLoad;
   constructor(video,canvas) { super();this.video=video;this.canvas=canvas; }
   #emit(type,detail) {this.dispatchEvent(new CustomEvent(type,{detail}));}
   async start() {
-    this.stop();const epoch=this.#epoch;this.running=true;
+    this.stop();const epoch=this.#epoch;this.running=true;this.#emit('state','Getting the camera ready… the first download may take a minute.');
     try {
       const worker=this.#worker=new Worker(new URL('./tracker-worker.js',import.meta.url));
       await new Promise((resolve,reject)=>{
-        const timer=setTimeout(()=>reject(new Error('Tracking model failed to load within 30 seconds')),30000);
-        worker.onerror=e=>{clearTimeout(timer);reject(new Error(e.message || 'Tracking worker failed'));};
+        const cleanup=()=>{clearTimeout(timer);this.#cancelLoad=null;};
+        const timer=setTimeout(()=>{cleanup();reject(new Error('Camera tools took too long to download. Check your connection and try again.'));},120000);
+        this.#cancelLoad=()=>{cleanup();resolve();};
+        worker.onerror=e=>{cleanup();reject(new Error(e.message || 'Tracking worker failed'));};
         worker.onmessage=({data})=>{
-          if(data.type==='ready'){clearTimeout(timer);resolve();}
-          if(data.type==='error'){clearTimeout(timer);reject(new Error(data.message));}
+          if(data.type==='progress')this.#emit('state',data.message);
+          if(data.type==='ready'){cleanup();resolve();}
+          if(data.type==='error'){cleanup();reject(new Error(data.message));}
         };
         worker.postMessage({type:'init'});
       });
@@ -25,6 +28,7 @@ export class BodyTracker extends EventTarget {
         if(data.type==='error'){this.#emit('error',data.message);this.stop();return;}
         if(data.type==='result'){this.#draw(data.landmarks);this.#emit('frame',data);}
       };
+      this.#emit('state','Opening your camera… allow access if Chrome asks.');
       const stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:15},facingMode:'user'},audio:false});
       if(epoch!==this.#epoch){stream.getTracks().forEach(t=>t.stop());return;}
       this.#stream=stream;this.video.srcObject=stream;await this.video.play();
@@ -57,7 +61,7 @@ export class BodyTracker extends EventTarget {
     }
   }
   stop() {
-    this.#epoch++;this.running=false;cancelAnimationFrame(this.#raf);
+    this.#epoch++;this.running=false;this.#cancelLoad?.();cancelAnimationFrame(this.#raf);
     this.#worker?.terminate();this.#worker=null;
     this.#stream?.getTracks().forEach(t=>t.stop());this.#stream=null;
     this.video.srcObject=null;this.#busy=false;

@@ -43,6 +43,11 @@ try {
  assert.equal(await page.locator('#humanNeutral').isEnabled(),true);
  await page.locator('#humanNeutral').click();assert.match(await page.locator('#neutralStatus').textContent(),/Capturing in/);
  await page.locator('#cameraStop').click();assert.equal(await page.locator('#humanNeutral').isDisabled(),true);assert.match(await page.locator('#neutralStatus').textContent(),/Start the camera/);assert.equal(await page.locator('video').evaluate(v=>v.srcObject),null);
+ await page.route('**/tracker-worker.js',route=>route.fulfill({contentType:'text/javascript',body:'self.onmessage=()=>{};'}));
+ await page.locator('#cameraStart').click();assert.equal(await page.locator('#cameraStop').isEnabled(),true);
+ assert.match(await page.locator('#cameraState').textContent(),/Getting the camera ready/);
+ await page.locator('#cameraStop').click();await page.waitForFunction(()=>!document.querySelector('#cameraStart').disabled);
+ assert.equal(await page.locator('video').evaluate(v=>v.srcObject),null);await page.unroute('**/tracker-worker.js');
  await mkdir('.local',{recursive:true});await page.screenshot({path:'.local/studio-desktop.png',fullPage:true});
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'.local/studio-mobile.png',fullPage:true});
  assert.deepEqual(errors,[]);
