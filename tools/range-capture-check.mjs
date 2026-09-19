@@ -1,0 +1,31 @@
+import { chromium } from 'playwright';
+import assert from 'node:assert/strict';
+import { fakeRobot } from './fake-robot.js';
+const browser=await chromium.launch({...(process.env.CI?{}:{channel:'chrome'})});
+try {
+ const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.addInitScript(fakeRobot);await page.goto(process.env.APP_URL||'http://localhost:8080');
+ await page.locator('#connect').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('connected:'));
+ await page.locator('[data-view=workshop]').click();await page.getByText('Measure travel by hand',{exact:true}).click();
+ const start=async()=>{await page.locator('#startRangeCapture').click();await page.waitForFunction(()=>document.querySelector('#rangeCaptureState').textContent.startsWith('Reading by hand'));};
+ await start();
+ assert(await page.locator('#arm').isDisabled());assert(await page.locator('#servoColour').isDisabled());assert(await page.locator('#volumeMedium').isDisabled());
+ await page.evaluate(()=>window.setRobotPose([60,128,128,128,128,128,128,128]));
+ await page.waitForFunction(()=>document.querySelector('#rangeCaptureState').textContent.includes('60–128'));
+ await page.evaluate(()=>window.setRobotPose([200,128,128,128,128,128,128,128]));
+ await page.waitForFunction(()=>document.querySelector('#rangeCaptureState').textContent.includes('60–200'));
+ await page.locator('#finishRangeCapture').click();
+ const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('meccanoid.calibration')));
+ assert.deepEqual([saved[0].min,saved[0].centre,saved[0].max],[60,128,200]);
+ assert.deepEqual([saved[1].min,saved[1].max],[24,232]);assert.equal(await page.locator('#arm').isChecked(),false);
+ assert.equal(await page.evaluate(()=>window.robotWrites.some(p=>p[0]===8)),false,'Hand capture must never send a servo pose');
+ assert(await page.evaluate(()=>window.robotWrites.some(p=>p[0]===11&&p[1]===4)));
+ await start();await page.locator('#globalStop').click();assert(await page.locator('#finishRangeCapture').isDisabled());
+ await start();await page.evaluate(()=>window.dropPoseReplies=true);
+ await page.waitForFunction(()=>document.querySelector('#rangeCaptureState').textContent.startsWith('Capture failed'),null,{timeout:5000});
+ assert(await page.locator('#finishRangeCapture').isDisabled());
+ assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('meccanoid.calibration'))),saved);
+ await page.evaluate(()=>window.dropPoseReplies=false);await start();await page.locator('#disconnect').click();
+ assert(await page.locator('#finishRangeCapture').isDisabled());assert.deepEqual(errors,[]);
+ console.log('Hand capture passed: measured bounds, unchanged joints, read mode, motion lock, stop, timeout, disconnect, no motor writes.');
+}finally{await browser.close();}

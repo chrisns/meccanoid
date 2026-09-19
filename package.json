@@ -1,0 +1,35 @@
+{
+  "name": "meccanoid-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Meccanoid G15KS Bluetooth library and browser controller",
+  "exports": "./src/meccanoid.js",
+  "scripts": {
+    "start": "npm run build && node tools/server.js",
+    "test": "node --test",
+    "test:browser": "node tools/browser-check.mjs",
+    "test:controls": "node tools/live-controls-check.mjs drag && node tools/live-controls-check.mjs ranges && node tools/live-controls-check.mjs lights && node tools/range-capture-check.mjs",
+    "build": "node tools/build.mjs",
+    "test:ui": "node tools/ui-check.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@chrisns/design": "https://codeload.github.com/chrisns/design/tar.gz/0c5d2ff75a448e092d2e53539d9f65591e3b79ea",
+    "@fontsource-variable/fraunces": "5.3.0",
+    "@fontsource-variable/hanken-grotesk": "5.3.0",
+    "@fontsource-variable/jetbrains-mono": "5.3.0",
+    "@mediapipe/tasks-vision": "1.0.1"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "playwright": "1.63.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chrisns/meccanoid.git"
+  }
+}

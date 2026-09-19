@@ -1,0 +1,89 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { defaultCalibration, validateCalibration, calibratedPose } from '../src/joints.js';
+import { bodySignals, mirrorSignals, relativeSignals } from '../src/tracking-math.js';
+import { MotionController, validateSequence } from '../src/motion.js';
+import { DiagnosticSession, diagnosticSteps } from '../src/diagnostics.js';
+import { decode, packet, preset, readPose } from '../src/protocol.js';
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+class Robot extends EventTarget {
+ connected=true;armed=true;writes=[];pose=Array(8).fill(128);
+ async readPose(){return [...this.pose];}
+ async setPose(pose){this.writes.push([...pose]);this.pose=[...pose];}
+ async readStatus(){return {type:'status',presetCount:20,buttons:{blue:true},errorCode:0};}
+ async setEyes(...rgb){this.writes.push(rgb);}
+ async stop(){this.dispatchEvent(new Event('stop'));}
+}
+test('calibration rejects duplicated slots and limits outside original app range',()=>{
+ const c=defaultCalibration();c[1].slot=0;assert.throws(()=>validateCalibration(c),/unique/);
+ const d=defaultCalibration();d[0].min=0;assert.throws(()=>validateCalibration(d),/24/);
+});
+test('mirroring changes only explicitly verified joints and respects asymmetrical limits',()=>{
+ const c=defaultCalibration();c[0]={...c[0],enabled:true,min:100,max:150,centre:120,reversed:true};
+ const pose=calibratedPose({rightElbow:1,leftElbow:1},c,Array(8).fill(128),1);
+ assert.deepEqual(pose,[100,128,128,128,128,128,128,128]);
+ assert.deepEqual(calibratedPose({rightElbow:100},c,Array(8).fill(128),1),pose);
+});
+test('body landmarks reject occlusion; anatomical sides only swap when requested',()=>{
+ const world=Array.from({length:33},()=>({x:0,y:0,z:0,visibility:1}));
+ world[11]={x:-1,y:0,z:0,visibility:1};world[12]={x:1,y:0,z:0,visibility:1};
+ world[13]={x:-1,y:1,z:0,visibility:1};world[14]={x:1,y:1,z:0,visibility:1};
+ world[15]={x:-1,y:2,z:0,visibility:1};world[16]={x:2,y:1,z:0,visibility:1};
+ world[23]={x:-1,y:2,z:0,visibility:1};world[24]={x:1,y:2,z:0,visibility:1};
+ const s=bodySignals(world,[]);assert.equal(s.leftElbow,0);assert.equal(s.rightElbow,1);
+ assert.equal(mirrorSignals(s).leftElbow,1);assert.equal(mirrorSignals(s,false).leftElbow,0);
+ assert.deepEqual(relativeSignals(s,s),Object.fromEntries(Object.keys(s).map(k=>[k,0])));
+ world[15].visibility=.2;assert.equal(bodySignals(world,[]),null);
+});
+test('motion advances in small steps, preserves other joints and stops queued targets',async()=>{
+ const r=new Robot(),m=new MotionController(r);await m.sync();const c=defaultCalibration();c[0].enabled=true;
+ m.setTarget([150,...Array(7).fill(0)],c);await sleep(10);
+ assert.deepEqual(r.writes[0],[132,...Array(7).fill(128)]);
+ await r.stop();await sleep(120);assert.equal(r.writes.length,1);
+});
+test('motion refuses stale/unread pose and out-of-limit baseline',async()=>{
+ const r=new Robot(),m=new MotionController(r),c=defaultCalibration();c[0].enabled=true;
+ assert.throws(()=>m.setTarget(Array(8).fill(140),c),/Read/);
+ c[0].max=168;r.pose[0]=230;await m.sync();assert.throws(()=>m.setTarget(Array(8).fill(140),c),/outside/);
+});
+test('sequence import validates times and never accepts a wheel command',()=>{
+ assert.throws(()=>validateSequence({version:1,frames:[{time:0,pose:Array(8).fill(128)},{time:0,pose:Array(8).fill(128)}]}),/increase/);
+ assert.throws(()=>validateSequence({version:1,frames:[{time:0,wheels:[1,1]}]}),/pose/);
+});
+test('status decodes robot bank size and physical button bitfield',()=>{
+ const payload=Array(17).fill(0);payload[7]=5;payload[13]=20;
+ const status=decode(packet(1,payload));assert.equal(status.presetCount,20);
+ assert.deepEqual(status.buttons,{blue:true,red:false,green:true,yellow:false});
+ assert.equal(readPose()[0],9);assert.deepEqual([...preset(20,2).slice(0,4)],[25,20,2,0]);
+});
+test('diagnostic does not pass without an observation; joint jog preserves and restores others',async()=>{
+ const r=new Robot(),d=new DiagnosticSession(r);assert.throws(()=>d.mark('working'),/Run/);
+ d.index=diagnosticSteps.findIndex(s=>s.kind==='joint');await d.run(defaultCalibration());
+ assert.deepEqual(r.writes,[[132,...Array(7).fill(128)],Array(8).fill(128)]);
+ assert.equal(d.results.length,0);d.mark('wrong-component','left elbow moved');
+ const result=d.report().results[0];assert.equal(result.outcome,'wrong-component');assert.equal(result.evidence.after,132);assert.equal(d.report().completed,false);
+});
+test('aborting a joint test never sends a delayed restore after stop',async()=>{
+ const r=new Robot(),d=new DiagnosticSession(r);d.index=diagnosticSteps.findIndex(s=>s.kind==='joint');
+ const running=d.run(defaultCalibration());await sleep(20);d.abort();await assert.rejects(running,/cancelled/);assert.equal(r.writes.length,1);assert.throws(()=>d.mark('working'),/Run/);
+});
+
+test('physically verified head mapping sends turn to slot 6 and sideways tilt to slot 7',()=>{
+ const c=defaultCalibration().map(v=>({...v,enabled:true}));
+ const pose=calibratedPose({headTurn:1,headTilt:-1},c,Array(8).fill(128),1);
+ assert.deepEqual(pose,[128,128,128,128,128,128,232,24]);
+});
+
+test('visible diagnostic sweep cancels promptly without a late restore',async()=>{
+ const r=new Robot(),d=new DiagnosticSession(r);d.index=diagnosticSteps.findIndex(s=>s.kind==='joint');
+ const running=d.run(defaultCalibration(),{visible:true});await sleep(150);d.abort();await assert.rejects(running,/cancelled/);
+ const count=r.writes.length;await sleep(150);assert.equal(r.writes.length,count);assert(count>=1&&count<100);
+ assert(r.writes.every(p=>p.slice(1).every(v=>v===128)&&Math.abs(p[0]-128)<=24));
+});
+
+test('concurrent manual targets preserve each other without enabling mirror joints',async()=>{
+ const r=new Robot(),m=new MotionController(r),c=defaultCalibration();await m.sync();
+ m.setJointTarget(0,148,c);m.setJointTarget(1,144,c);
+ assert.deepEqual(m.target,[148,144,128,128,128,128,128,128]);
+ await sleep(650);assert.deepEqual(r.pose,m.target);assert(c.every(j=>!j.enabled));m.cancel();
+});
