@@ -12,34 +12,25 @@ const tracked=(world,image,i)=>visible(world?.[i])&&(!image?.length||inFrame(ima
 /** Landmarks use anatomical left/right. Mirroring the video CSS does not change their IDs. */
 export function bodySignals(world, image) {
   const signals={};
-  if(tracked(world,image,11)&&tracked(world,image,12)) {
+  if(visible(world?.[11])&&visible(world?.[12])) {
     const shoulders=midpoint(world[11],world[12]);
     const right=unit(subtract(world[12],world[11]));
-    const hips=tracked(world,image,23)&&tracked(world,image,24)?midpoint(world[23],world[24]):null;
-    const down=unit(hips?subtract(hips,shoulders):tracked(world,image,0)?subtract(shoulders,world[0]):{x:0,y:1,z:0});
+    const hips=visible(world?.[23])&&visible(world?.[24])?midpoint(world[23],world[24]):null;
+    const down=unit(hips?subtract(hips,shoulders):visible(world?.[0])?subtract(shoulders,world[0]):{x:0,y:1,z:0});
     const forward=right&&down?unit(cross(right,down)):null;
     if(right&&down&&forward)for(const [side,s,e,w,sign] of [['left',11,13,15,-1],['right',12,14,16,1]]) {
-      if(!tracked(world,image,e))continue;
+      if(!visible(world?.[e]))continue;
       const upper=unit(subtract(world[e],world[s]));
       if(!upper)continue;
       signals[`${side}Lift`]=Math.atan2(dot(upper,right)*sign,dot(upper,down))/(Math.PI/2);
       signals[`${side}Swing`]=Math.atan2(dot(upper,forward),Math.max(0.05,dot(upper,down)))/(Math.PI/2);
-      if(tracked(world,image,w)){
+      if(visible(world?.[w])){
         const lower=unit(subtract(world[w],world[e]));
-        if(lower){
-          let bend=Math.acos(clamp(dot(upper,lower),-1,1))/(Math.PI/2);
-          if(image?.[s]&&image?.[e]&&image?.[w]){
-            const upperImage=flatDelta(image[e],image[s]),lowerImage=flatDelta(image[w],image[e]);
-            if(length(upperImage)>.04&&length(lowerImage)>.04){
-              bend=Math.max(bend,Math.acos(clamp(dot(unit(upperImage),unit(lowerImage)),-1,1))/(Math.PI/2));
-            }
-          }
-          signals[`${side}Elbow`]=bend;
-        }
+        if(lower)signals[`${side}Elbow`]=Math.acos(clamp(dot(upper,lower),-1,1))/(Math.PI/2);
       }
     }
   }
-  if ([0,7,8].every(i=>inFrame(image?.[i]))) {
+  if ([0,7,8].every(i=>visible(image?.[i]))) {
     const ears=midpoint(image[7],image[8]);
     const width=Math.abs(image[8].x-image[7].x);
     if(width>0.015) {
@@ -50,6 +41,26 @@ export function bodySignals(world, image) {
     }
   }
   return Object.keys(signals).length?signals:null;
+}
+/** Make the on-screen model match only limbs that are actually visible, without changing robot commands. */
+export function previewBodySignals(world,image) {
+  const signals=bodySignals(world,image);
+  if(!signals)return null;
+  const result={...signals};
+  for(const [side,s,e,w] of [['left',11,13,15],['right',12,14,16]]) {
+    if(!tracked(world,image,s)||!tracked(world,image,e)){
+      for(const joint of ['Lift','Swing','Elbow'])delete result[`${side}${joint}`];
+      continue;
+    }
+    if(tracked(world,image,w)){
+      const upper=flatDelta(image[e],image[s]),lower=flatDelta(image[w],image[e]);
+      if(length(upper)>.04&&length(lower)>.04){
+        const bend=Math.acos(clamp(dot(unit(upper),unit(lower)),-1,1))/(Math.PI/2);
+        result[`${side}Elbow`]=Math.max(result[`${side}Elbow`]??0,bend);
+      }
+    } else delete result[`${side}Elbow`];
+  }
+  return result;
 }
 export function mirrorSignals(signals, mirrored=true) {
   if(!signals) return null;

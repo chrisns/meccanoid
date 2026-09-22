@@ -77,9 +77,9 @@ try {
   const modelResults = await page.evaluate(() => window.poseVideoResults);
   if (process.env.CAMERA_POSE_DIAGNOSTICS) {
     const diagnosis = await page.evaluate(async () => {
-      const {bodySignals,mirrorSignals} = await import('./src/tracking-math.js');
+      const {bodySignals,previewBodySignals,mirrorSignals} = await import('./src/tracking-math.js');
       const frame=window.poseVideoResults.findLast(r=>r.pose);
-      return {raw:bodySignals(frame?.world,frame?.landmarks),mirrored:mirrorSignals(bodySignals(frame?.world,frame?.landmarks)),pose:document.querySelector('#robotPreview').dataset.pose,image:[11,12,13,14,15,16].map(i=>[i,frame?.landmarks?.[i]?.x,frame?.landmarks?.[i]?.y,frame?.landmarks?.[i]?.visibility]),world:[11,12,13,14,15,16].map(i=>[i,frame?.world?.[i]?.x,frame?.world?.[i]?.y,frame?.world?.[i]?.z])};
+      return {robot:mirrorSignals(bodySignals(frame?.world,frame?.landmarks)),preview:mirrorSignals(previewBodySignals(frame?.world,frame?.landmarks)),pose:document.querySelector('#robotPreview').dataset.pose,image:[11,12,13,14,15,16].map(i=>[i,frame?.landmarks?.[i]?.x,frame?.landmarks?.[i]?.y,frame?.landmarks?.[i]?.visibility]),world:[11,12,13,14,15,16].map(i=>[i,frame?.world?.[i]?.x,frame?.world?.[i]?.y,frame?.world?.[i]?.z])};
     });
     console.log('Pose diagnosis:',JSON.stringify(diagnosis));
     await page.locator('#robotPreview').screenshot({path:process.env.CAMERA_POSE_DIAGNOSTICS});

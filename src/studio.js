@@ -2,7 +2,7 @@ import { JOINT_KEYS } from './keyboard.js';
 import { JOINTS, defaultCalibration, validateCalibration, calibratedPose, clamp } from './joints.js';
 import { MotionController, validateSequence } from './motion.js';
 import { BodyTracker } from './tracker.js';
-import { bodySignals, mirrorSignals } from './tracking-math.js';
+import { bodySignals, previewBodySignals, mirrorSignals } from './tracking-math.js';
 import { DiagnosticSession, diagnosticSteps } from './diagnostics.js';
 const $=id=>document.getElementById(id);
 const storageKey=key=>new URLSearchParams(location.search).get('practice')==='1'?`practice.${key}`:key;
@@ -237,11 +237,11 @@ export function setupStudio({robot,log,run,refresh,preview}) {
   tracker.addEventListener('error',e=>{pauseMirror(e.detail);signals=null;log(`Camera: ${e.detail}`);if(robot.connected)run(()=>robot.arm(false));state();});
   for(const joint of JOINTS){const row=document.createElement('div');row.className='tracking-row';const name=document.createElement('span');name.textContent=joint.label;const meter=document.createElement('meter');meter.id=`signal-${joint.key}`;meter.min=-1;meter.max=1;meter.value=0;row.append(name,meter);$('trackingBars').append(row);}
   tracker.addEventListener('frame',({detail})=>{
-    lastFrame=performance.now();const raw=bodySignals(detail.world,detail.landmarks);signals=mirrorSignals(raw,$('mirrorSides').checked);
+    lastFrame=performance.now();const mirrored=$('mirrorSides').checked;const raw=bodySignals(detail.world,detail.landmarks);signals=mirrorSignals(raw,mirrored);
     if(!signals){preview?.trackingLost();$('cameraState').textContent='Step into view — robot stopped';smoothed=null;if(mirroring&&!cameraStalled){cameraStalled=true;motion.cancel();if(robot.connected)run(()=>robot.stop());}state();return;}
     cameraStalled=false;$('cameraState').textContent=mirroring?'Body tracked · controlling robot':'Body tracked · on-screen preview';
-    const relative=signals;
-    if(location.hash==='#copy'&&performance.now()>=manualOverrideUntil)preview?.setSignals(relative,calibration,Number($('mirrorGain').value)/100);
+    const relative=signals,previewSignals=mirrorSignals(previewBodySignals(detail.world,detail.landmarks),mirrored);
+    if(location.hash==='#copy'&&performance.now()>=manualOverrideUntil)preview?.setSignals(previewSignals,calibration,Number($('mirrorGain').value)/100);
     for(const joint of JOINTS)$(`signal-${joint.key}`).value=relative[joint.key]??0;
     if(mirroring&&performance.now()>=manualOverrideUntil){
       try {

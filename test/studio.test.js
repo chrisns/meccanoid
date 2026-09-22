@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultCalibration, isLegacyDefaultCalibration, validateCalibration, calibratedPose, MEASURED_NEUTRAL } from '../src/joints.js';
-import { bodySignals, mirrorSignals, relativeSignals } from '../src/tracking-math.js';
+import { bodySignals, previewBodySignals, mirrorSignals, relativeSignals } from '../src/tracking-math.js';
 import { MotionController, validateSequence } from '../src/motion.js';
 import { DiagnosticSession, diagnosticSteps } from '../src/diagnostics.js';
 import { decode, packet, preset, readPose } from '../src/protocol.js';
@@ -53,7 +53,8 @@ test('camera ignores confident arm landmarks guessed beyond the frame',()=>{
  world[15]={x:-1,y:2,z:0,visibility:1};world[16]={x:1,y:2,z:0,visibility:1};
  world[23]={x:-1,y:2,z:0,visibility:1};world[24]={x:1,y:2,z:0,visibility:1};
  image[13].y=1.12;
- const signals=bodySignals(world,image);
+ const robotSignals=bodySignals(world,image),signals=previewBodySignals(world,image);
+ assert.equal(robotSignals.leftElbow,0,'robot mapping remains based on the physically tested world landmarks');
  assert.equal(signals.leftLift,undefined);
  assert.equal(signals.leftSwing,undefined);
  assert.equal(signals.leftElbow,undefined);
@@ -69,7 +70,8 @@ test('camera preserves a clear on-screen elbow bend when depth estimation unders
  image[12]={x:.333,y:.806,z:0,visibility:1};
  image[14]={x:.046,y:.962,z:0,visibility:1};
  image[16]={x:.095,y:.566,z:0,visibility:1};
- assert(bodySignals(world,image).rightElbow>1.3);
+ assert.equal(bodySignals(world,image).rightElbow,0);
+ assert(previewBodySignals(world,image).rightElbow>1.3);
 });
 test('motion advances in small steps, preserves other joints and stops queued targets',async()=>{
  const r=new Robot(),m=new MotionController(r);await m.sync();const c=defaultCalibration().map(v=>({...v,enabled:false}));c[0].enabled=true;
