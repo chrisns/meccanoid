@@ -52,6 +52,7 @@ export function setupStudio({robot,log,run,refresh,preview}) {
   }
   function action(id,fn){$(id).onclick=()=>run(async()=>{await fn();state();});}
   function assertFree() {if(capturing||captureStarting)throw new Error('Finish range capture before using other controls');if(diagnosticMode)throw new Error('Stop the system test before using other controls');}
+  async function ensureMotion(){if(!robot.armed)await robot.arm(true);}
   function assertPose(){if(!motion.current)throw new Error('Read the current robot pose first');}
   function renderPose() {
     if(!(tracker.running&&location.hash==='#copy')||performance.now()<manualOverrideUntil)preview?.setPose(motion.active?motion.target:motion.current,calibration);
@@ -76,8 +77,8 @@ export function setupStudio({robot,log,run,refresh,preview}) {
     calibration=next;store('meccanoid.calibration',calibration);renderPose();
     $('calibrationStatus').textContent=`Saved · ${calibration.filter(c=>c.enabled).length} verified joints enabled`;
   }
-  function nudgeJoint(index,direction) {
-    assertFree();manualOverrideUntil=performance.now()+180;stopReplay();assertPose();
+  async function nudgeJoint(index,direction) {
+    assertFree();manualOverrideUntil=performance.now()+180;stopReplay();assertPose();await ensureMotion();
     const c=calibration[index],base=motion.active?motion.target:motion.current;
     motion.setJointTarget(c.slot,clamp(base[c.slot]+direction*4,c.min,c.max),calibration);
   }
@@ -98,7 +99,7 @@ export function setupStudio({robot,log,run,refresh,preview}) {
     const output=document.createElement('output');output.textContent='—';
     const label=document.createElement('label');label.append(heading,output);
     const slider=document.createElement('input');slider.type='range';slider.min=88;slider.max=168;slider.value=128;slider.setAttribute('aria-label',joint.label);
-    slider.oninput=()=>run(()=>{assertFree();manualOverrideUntil=performance.now()+220;stopReplay();assertPose();motion.setJointTarget(calibration[i].slot,Number(slider.value),calibration);});
+    slider.oninput=()=>run(async()=>{assertFree();manualOverrideUntil=performance.now()+220;stopReplay();assertPose();await ensureMotion();motion.setJointTarget(calibration[i].slot,Number(slider.value),calibration);});
     const toolbar=document.createElement('div');toolbar.className='toolbar';
     const buttons=[];
     for(const direction of [-1,1]){
@@ -120,8 +121,8 @@ export function setupStudio({robot,log,run,refresh,preview}) {
     $('savedPoses').replaceChildren();
     saved.forEach((item,index)=>{
       const row=document.createElement('div');row.className='saved-item';const name=document.createElement('span');name.textContent=item.name;
-      const play=document.createElement('button');play.textContent='Recall';play.disabled=!robot.armed||!motion.current||diagnosticMode;
-      play.onclick=()=>run(()=>{assertFree();cancelProducers();motion.setTarget(item.pose,calibration);});
+      const play=document.createElement('button');play.textContent='Recall';play.disabled=!robot.connected||!motion.current||diagnosticMode;
+      play.onclick=()=>run(async()=>{assertFree();cancelProducers();await ensureMotion();motion.setTarget(item.pose,calibration);});
       const remove=document.createElement('button');remove.textContent='Delete';remove.onclick=()=>run(()=>{saved.splice(index,1);store('meccanoid.poses',saved);renderSaved();});
       row.append(name,play,remove);$('savedPoses').append(row);
     });
@@ -204,9 +205,9 @@ export function setupStudio({robot,log,run,refresh,preview}) {
   action('savePose',()=>{assertPose();if(saved.length>=50)throw new Error('Maximum 50 saved poses');saved.push({name:$('poseName').value.trim()||`Pose ${saved.length+1}`,pose:[...motion.current]});store('meccanoid.poses',saved);renderSaved();});
   action('recordSequence',()=>{assertFree();assertPose();stopReplay();recording=true;recordStart=performance.now();sequence={version:1,name:'Recorded movement',frames:[{time:0,pose:[...motion.current]}]};recordTimer=setTimeout(finishRecording,60000);$('sequenceState').textContent='Recording sent joint poses…';});
   action('finishSequence',finishRecording);
-  action('playSequence',()=>{
+  action('playSequence',async()=>{
     assertFree();assertPose();if(!sequence?.frames.length)throw new Error('Record or import a sequence first');
-    if(!robot.armed)throw new Error('Enable motion first');cancelProducers();finishRecording();
+    await ensureMotion();cancelProducers();finishRecording();
     const data=validateSequence(sequence);playing=true;const epoch=++playEpoch,start=performance.now();let index=0;
     const tick=()=>{
       if(!playing||epoch!==playEpoch)return;
@@ -264,7 +265,7 @@ export function setupStudio({robot,log,run,refresh,preview}) {
   action('refreshBank',async()=>{$('bankState').textContent='Reading names from the robot…';const entries=await robot.readPresetBank();presetBank=new Map(entries.map(e=>[e.id,e.name]));renderBank();});
   $('presetSelect').onchange=()=>$('presetLabel').value=labels[$('presetSelect').value]??'';
   $('presetLabel').onchange=()=>run(()=>{const id=$('presetSelect').value;if(!id)throw new Error('Select a preset');labels[id]=$('presetLabel').value.trim();store('meccanoid.presetLabels',labels);renderBank();});
-  async function playRobot(fn){assertFree();cancelProducers();finishRecording();motion.current=null;renderPose();if(robot.connected)await robot.stop();await fn();}
+  async function playRobot(fn){assertFree();cancelProducers();finishRecording();motion.current=null;renderPose();if(robot.connected){await robot.stop();await ensureMotion();}await fn();}
   for(const [id,level] of [['volumeQuiet',1],['volumeMedium',2],['volumeLoud',3]])action(id,async()=>{await playRobot(()=>robot.setVolume(level));$('audioState').textContent=`Volume ${level} sent · listen for its preview`;});
   let volumeTimer;
   $('volumeCustom').oninput=()=>{clearTimeout(volumeTimer);volumeTimer=setTimeout(()=>run(async()=>{if(!robot.connected||$('volumeCustom').disabled||!$('volumeCustom').value||!$('volumeCustom').checkValidity())return;const value=Number($('volumeCustom').value);await playRobot(()=>robot.setExperimentalVolume(value));$('audioState').textContent=`Experimental volume ${value} sent · effect needs listening confirmation`; }),200);};
@@ -286,7 +287,7 @@ export function setupStudio({robot,log,run,refresh,preview}) {
   diagnostics.addEventListener('progress',e=>{$('testEvidence').textContent=e.detail;renderTest();state();});
   action('runTest',async()=>{
     cancelProducers();finishRecording();diagnosticMode=true;motion.current=null;renderPose();state();
-    try{if(robot.connected)await robot.stop();await diagnostics.run(calibration,{visible:$('visibleTests').checked});}finally{state();}
+    try{if(robot.connected){await robot.stop();if(diagnostics.step?.motion)await ensureMotion();}await diagnostics.run(calibration,{visible:$('visibleTests').checked});}finally{state();}
   });
   action('abortTest',async()=>{diagnostics.abort();diagnosticMode=false;if(robot.connected)await robot.arm(false);state();});
   action('resetTests',()=>{diagnostics.reset();diagnosticMode=false;$('testEvidence').textContent='Ready';renderTest();});
@@ -297,9 +298,8 @@ export function setupStudio({robot,log,run,refresh,preview}) {
   window.addEventListener('pagehide',()=>{cameraEpoch++;tracker.stop();synth?.cancel();$('audioPlayer').pause();});
   function state() {
     const teaching=capturing||captureStarting;
-    const available=robot.connected&&robot.armed&&!diagnosticMode&&!teaching;
+    const available=robot.connected&&!diagnosticMode&&!teaching;
     $('startRangeCapture').disabled=!robot.connected||diagnosticMode||teaching;$('finishRangeCapture').disabled=!capturing;$('cancelRangeCapture').disabled=!teaching;
-    $('arm').disabled=!robot.connected||teaching;
     $('copyDrive').disabled=!available;
     $('servoColour').disabled=teaching;document.querySelectorAll('#chest input').forEach(input=>input.disabled=teaching);
     calRows.forEach(row=>Object.values(row).forEach(input=>input.disabled=teaching));
@@ -317,7 +317,7 @@ export function setupStudio({robot,log,run,refresh,preview}) {
     $('quickJoke').disabled=!available;$('quickIntro').disabled=!available;
     $('visibleTests').disabled=diagnostics.running;
     $('playLim').disabled=!available||!robot.status?.limCount;
-    $('runTest').disabled=teaching||diagnostics.running||!diagnostics.step||(!robot.connected&&diagnostics.step.kind!=='manual')||(diagnostics.step?.motion&&!robot.armed);
+    $('runTest').disabled=teaching||diagnostics.running||!diagnostics.step||(!robot.connected&&diagnostics.step.kind!=='manual');
     $('resetTests').disabled=diagnostics.running;
     document.querySelectorAll('[data-result]').forEach(b=>b.disabled=diagnostics.running||!diagnostics.step);
     if(diagnosticMode)$('motion').disabled=true;
@@ -325,10 +325,10 @@ export function setupStudio({robot,log,run,refresh,preview}) {
   }
   renderSaved();renderTest();renderBank();state();
   return {state,halt,
-    async keyboardDrive(direction,valid){assertFree();manualOverrideUntil=performance.now()+500;motion.cancel();if(valid())await robot.holdDirection(direction,700);},
-    async holdDrive(direction){assertFree();manualOverrideUntil=performance.now()+500;motion.cancel();await robot.holdDirection(direction,700);},
+    async keyboardDrive(direction,valid){assertFree();manualOverrideUntil=performance.now()+500;motion.cancel();await ensureMotion();if(valid())await robot.holdDirection(direction,700);},
+    async holdDrive(direction){assertFree();manualOverrideUntil=performance.now()+500;motion.cancel();await ensureMotion();await robot.holdDirection(direction,700);},
     async keyboardNudge(deltas,valid){
-      assertFree();manualOverrideUntil=performance.now()+180;stopReplay();if(!motion.current)await motion.sync();if(!valid())return;
+      assertFree();manualOverrideUntil=performance.now()+180;stopReplay();if(!motion.current)await motion.sync();await ensureMotion();if(!valid())return;
       const base=motion.active?motion.target:motion.current,pose=[...base];
       const config=calibration.map((c,i)=>{if(deltas[i])pose[c.slot]=clamp(base[c.slot]+deltas[i],c.min,c.max);return {...c,enabled:Boolean(deltas[i])};});
       motion.setTarget(pose,config);

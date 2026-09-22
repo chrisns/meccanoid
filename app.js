@@ -27,9 +27,7 @@ function state() {
   $('connect').disabled = connected||(!practice&&!navigator.bluetooth);
   $('disconnect').disabled = !connected;
   $('lights').disabled = !connected;
-  $('arm').disabled = !connected;
-  $('arm').checked = robot.armed;
-  $('motion').disabled = !connected || !robot.armed;
+  $('motion').disabled = !connected;
   $('globalStop').disabled=!connected;
   $('stop').disabled=!connected;
   studio?.state();
@@ -65,7 +63,6 @@ $('custom').oninput = () => run(async () => {
 });
 $('servoColour').onchange = () => run(() => robot.setServoLights(Array(8).fill(Number($('servoColour').value))));
 document.querySelectorAll('#chest input').forEach(input=>input.onchange = () => run(() => robot.setChest([...document.querySelectorAll('#chest input')].map(c => c.checked))));
-$('arm').onchange = () => run(() => robot.arm($('arm').checked));
 let heldDriveButton=null;
 function bindDriveHold(button) {
   let active=false,timer;
@@ -74,9 +71,9 @@ function bindDriveHold(button) {
     if(!active)return;active=false;heldDriveButton=null;clearTimeout(timer);button.classList.remove('held-key');
     run(()=>robot.stop());
   };
-  button.addEventListener('pointerdown',event=>{if(!robot.connected||!robot.armed||heldDriveButton)return;event.preventDefault();active=true;heldDriveButton=button;button.classList.add('held-key');button.setPointerCapture(event.pointerId);pulse();});
+  button.addEventListener('pointerdown',event=>{if(!robot.connected||heldDriveButton)return;event.preventDefault();active=true;heldDriveButton=button;button.classList.add('held-key');button.setPointerCapture(event.pointerId);pulse();});
   for(const event of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(event,finish);
-  button.addEventListener('keydown',event=>{if(event.key!=='Enter'||event.repeat||!robot.connected||!robot.armed||heldDriveButton)return;event.preventDefault();active=true;heldDriveButton=button;button.classList.add('held-key');pulse();});
+  button.addEventListener('keydown',event=>{if(event.key!=='Enter'||event.repeat||!robot.connected||heldDriveButton)return;event.preventDefault();active=true;heldDriveButton=button;button.classList.add('held-key');pulse();});
   button.addEventListener('keyup',event=>{if(event.key==='Enter'){event.preventDefault();finish();}});
   button.addEventListener('blur',finish);
   button.onclick=event=>event.preventDefault();
@@ -94,7 +91,7 @@ $('export').onclick = () => {
 studio = setupStudio({robot,log,run,refresh:state,preview});
 setupShell({robot,studio,run,practice});
 const keyboard=new KeyboardControls({
-  enabled:()=>robot.connected&&robot.armed,
+  enabled:()=>robot.connected,
   drive:(direction,valid)=>studio.keyboardDrive(direction,valid),
   nudge:(deltas,valid)=>studio.keyboardNudge(deltas,valid),
   release:()=>studio.releaseJoint(),

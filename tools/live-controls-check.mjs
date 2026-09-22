@@ -15,8 +15,6 @@ try {
   const before=await slider.evaluate(e=>[e.min,e.max]);await page.locator('#neutralPose').click();
   if(process.argv[2]==='ranges') assert.deepEqual(await slider.evaluate(e=>[e.min,e.max]),before,'Capturing neutral must not silently narrow the configured travel');
   else {
-   await page.locator('#arm').check();
-
    await slider.evaluate(el=>{el.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:1}));el.value='140';el.dispatchEvent(new Event('input',{bubbles:true}));});
    await page.waitForTimeout(50);
    assert.equal(await slider.inputValue(),'140','Servo progress must not pull the thumb back from the requested target during a drag');

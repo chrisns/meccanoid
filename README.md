@@ -23,7 +23,7 @@ An interactive **3D G15KS-style robot** sits beside the controls. Drag to orbit 
 
 In **Copy me**, connect the robot and press **Turn camera on**. That single action reads its pose, enables motion and starts controlling all eight joints. Hold a direction button there, or an arrow key, to drive while the camera stays on; release to stop. Without Bluetooth, the same camera movement drives the 3D robot only. There is no separate neutral, start or apply step. Losing tracking stops physical commands; stepping back into view resumes them.
 
-**Keyboard:** hold arrow keys to drive and release to stop. Joint +/− pairs, in order: right elbow **Q/A**, right lift **W/S**, right shoulder **E/D**, left shoulder **R/F**, left lift **U/J**, left elbow **I/K**, head turn **O/L**, head tilt **P/;**. Keys work during camera control: a held joint key overrides tracking, and release hands that joint back to the camera. The on-page guide shows every shortcut. **Esc** stops and disarms anywhere; **Space** does so outside text fields. Losing window focus disarms the robot.
+**Keyboard:** hold arrow keys to drive and release to stop. Joint +/− pairs, in order: right elbow **Q/A**, right lift **W/S**, right shoulder **E/D**, left shoulder **R/F**, left lift **U/J**, left elbow **I/K**, head turn **O/L**, head tilt **P/;**. Keys work during camera control: a held joint key overrides tracking, and release hands that joint back to the camera. The on-page guide shows every shortcut. **Esc** stops everything anywhere; **Space** does so outside text fields. Losing window focus stops motion. The next deliberate movement automatically enables the internal motion guard again.
 
 ## Five places to explore
 

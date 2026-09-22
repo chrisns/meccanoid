@@ -19,7 +19,7 @@ try {
  await page.getByRole('button',{name:'Red eyes',exact:true}).click();
  assert.equal(await page.getByRole('button',{name:'Red eyes',exact:true}).getAttribute('aria-pressed'),'true');
  await page.getByRole('button',{name:'Green eyes',exact:true}).click();
- await page.locator('#arm').check();await page.locator('#quickJoke').click();
+ await page.locator('#quickJoke').click();
  assert.match(await page.locator('#practiceAction').textContent(),/Practice joke/);
  const issues=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
  assert.deepEqual(issues.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)})),[]);

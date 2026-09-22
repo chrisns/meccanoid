@@ -33,8 +33,6 @@
 </span>
 <span id="status" role="status">Robot not connected</span>
 </div>
-<label class="arm">
-<input id="arm" type="checkbox" disabled> Ready to move</label>
 <div class="connection">
 <button id="connect" class="primary">Connect robot</button>
 <button id="disconnect" disabled>Disconnect</button>
@@ -62,7 +60,7 @@
 </nav>
 <section id="keyboardHelp" class="keyboard-guide" hidden>
 <h2>Take the keys.</h2>
-<p>Tick <strong>Ready to move</strong>, then hold a key. Let go to stop that movement. Arrow keys drive; let go of them before moving joints. <kbd>Esc</kbd> stops and disarms anywhere. <kbd>Space</kbd> stops when you’re not typing.</p>
+<p>Hold a key to move and let go to stop. Arrow keys drive; let go of them before moving joints. <kbd>Esc</kbd> stops everything anywhere. <kbd>Space</kbd> stops when you’re not typing.</p>
 <p>
 <kbd>↑</kbd> forward · <kbd>↓</kbd> back · <kbd>←</kbd> turn left · <kbd>→</kbd> turn right</p>
 <div id="keyboardJoints">
@@ -141,7 +139,7 @@
 <section class="panel" id="drivePanel">
 <p class="eyebrow">02 / ON THE MOVE</p>
 <h2>Go exploring.</h2>
-<p class="muted small">Make some space, then tick “Ready to move”. Hold a direction button to move and release it to stop.</p>
+<p class="muted small">Make some space. Hold a direction button to move and release it to stop.</p>
 <fieldset id="motion" disabled>
 <div class="dpad">
 <button data-drive="forward" data-key="ArrowUp" aria-keyshortcuts="ArrowUp" aria-label="Forward">
@@ -174,7 +172,7 @@
 <button id="quickJoke">Tell a joke</button>
 <button id="quickIntro">Say hello</button>
 </div>
-<p class="small muted">Tick “Ready to move” first. Your robot might wave its arms while it talks.</p>
+<p class="small muted">Your robot might wave its arms while it talks.</p>
 <p class="small muted">Robot volume · plays a short preview</p>
 <div class="toolbar">
 <button id="volumeQuiet">Whisper</button>
@@ -216,7 +214,7 @@
 <p class="eyebrow">03 / STRIKE A POSE</p>
 <div class="row between">
 <h2>A little robot yoga.</h2>
-<button id="halt" class="stop">Stop & disarm</button>
+<button id="halt" class="stop">Stop movement</button>
 </div>
 <p class="small muted">Read the pose, then drag a slider to move one joint. Right and left mean the robot’s own right and left. The keys on each button also move that joint; hold to keep moving.</p>
 <p class="tbc"><strong>Movement ranges measured.</strong> Controls use the 19 September physical calibration with a four-unit margin inside each observed endpoint.</p>

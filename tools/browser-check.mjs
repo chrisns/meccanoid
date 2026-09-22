@@ -8,12 +8,13 @@ try {
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
  await page.addInitScript(fakeRobot);
  await page.goto(process.env.APP_URL||'http://localhost:8080');
+ assert.equal(await page.locator('#arm').count(),0,'movement must not require a readiness checkbox');
  assert.equal(await page.locator('#jointControls .joint-card').count(),8);
  assert.equal(await page.locator('#mirrorStart,#mirrorStop,#humanNeutral').count(),0,'camera mode has no extra start or apply buttons');
  await page.locator('#connect').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('connected:'));
  await page.locator('[data-view=move]').click();await page.locator('#syncPose').click();await page.waitForFunction(()=>document.querySelector('#poseState').textContent.startsWith('Current pose'));
- await page.locator('#neutralPose').click();await page.locator('#arm').check();
- await page.locator('[data-view=play]').click();await page.locator('#arm').check();await page.getByRole('button',{name:'Forward',exact:true}).click();
+ await page.locator('#neutralPose').click();
+ await page.locator('[data-view=play]').click();await page.getByRole('button',{name:'Forward',exact:true}).click();
  await page.waitForFunction(()=>window.robotWrites.some(p=>p[0]===25&&p[1]===13));
  await page.waitForFunction(()=>window.robotWrites.some(p=>p[0]===25&&p[1]===8));
  assert.equal(await page.locator('#globalStop').isEnabled(),true);
@@ -33,14 +34,14 @@ try {
  await page.getByRole('button',{name:'Working ✓',exact:true}).click();assert.match(await page.locator('#testTitle').textContent(),/Eyes/);
  await page.locator('[data-view=workshop]').click();await page.locator('#runTest').click();await page.waitForFunction(()=>window.robotWrites.some(p=>p[0]===17));
  await page.getByRole('button',{name:'Working ✓',exact:true}).click();
- await page.locator('#abortTest').click();assert.equal(await page.locator('#arm').isChecked(),false);
+ await page.locator('#abortTest').click();
  await page.getByText('Experimental volume value',{exact:true}).click();await page.locator('#volumeCustom').fill('98');await page.locator('#volumeCustom').fill('99');await page.locator('#volumeCustom').press('Tab');await page.waitForFunction(()=>window.robotWrites.some(p=>p[0]===25&&p[1]===9&&p[2]===99));
  await page.locator('[data-view=play]').click();await page.locator('#volumeMedium').click();await page.waitForFunction(()=>window.robotWrites.some(p=>p[0]===25&&p[1]===9&&p[2]===2));
  await page.locator('[data-view=workshop]').click();await page.locator('#syncClock').click();await page.waitForFunction(()=>window.robotWrites.some(p=>p[0]===27));
  await page.locator('[data-view=copy]').click();await page.locator('#cameraStart').click();
  await page.waitForFunction(()=>document.querySelector('#cameraState').textContent.includes('Step into view')||document.querySelector('#cameraState').textContent.includes('Body tracked')||document.querySelector('#notice').textContent.includes('Error'),{},{timeout:45000});
  const cameraState=await page.locator('#cameraState').textContent();assert.match(cameraState,/Step into view|Body tracked/);
- assert.equal(await page.locator('#arm').isChecked(),true,'camera start arms and starts robot control without another button');
+ assert.equal(await page.locator('#copyDrive').isEnabled(),true,'camera starts robot control without another button');
  assert.match(await page.locator('#mirrorState').textContent(),/controlling the robot|Waiting for camera — robot stopped/);
  await page.locator('#content').focus();const cameraPoseWrites=await page.evaluate(()=>window.robotWrites.filter(p=>p[0]===8).length);
  await page.keyboard.down('q');await page.waitForTimeout(350);await page.keyboard.up('q');
@@ -56,7 +57,7 @@ try {
  await page.waitForFunction(count=>window.robotWrites.filter(p=>p[0]===25&&p[1]===13).length>count,cameraButtonDrives);
  assert.equal(await page.locator('#cameraStop').isEnabled(),true,'direction button leaves camera on');
  assert.equal(await page.locator('#cameraStop').isEnabled(),true,'joint keyboard override keeps camera running');
- await page.locator('#cameraStop').click();assert.equal(await page.locator('#arm').isChecked(),false);assert.equal(await page.locator('video').evaluate(v=>v.srcObject),null);
+ await page.locator('#cameraStop').click();assert.equal(await page.locator('video').evaluate(v=>v.srcObject),null);
  await page.route('**/tracker-worker.js',route=>route.fulfill({contentType:'text/javascript',body:'self.onmessage=()=>{};'}));
  await page.locator('#cameraStart').click();assert.equal(await page.locator('#cameraStop').isEnabled(),true);
  assert.match(await page.locator('#cameraState').textContent(),/Getting the camera ready/);
@@ -67,7 +68,7 @@ try {
  await mkdir('.local',{recursive:true});await page.screenshot({path:'.local/studio-desktop.png',fullPage:true});
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'.local/studio-mobile.png',fullPage:true});
  assert.deepEqual(errors,[]);
- await page.locator('#globalStop').click();assert.equal(await page.locator('#arm').isChecked(),false);
+ await page.locator('#globalStop').click();assert.equal(await page.locator('#motion').isEnabled(),true,'stopping does not introduce another readiness step');
  await page.locator('#disconnect').click();
  console.log('Browser checks passed: simulated BLE, joint preservation, saved pose, preset bank, guided tests, real local MediaPipe inference, camera cleanup, mobile layout.');
 }finally{await browser.close();}
