@@ -60,6 +60,8 @@ try {
  await page.route('**/tracker-worker.js',route=>route.fulfill({contentType:'text/javascript',body:'self.onmessage=()=>{};'}));
  await page.locator('#cameraStart').click();assert.equal(await page.locator('#cameraStop').isEnabled(),true);
  assert.match(await page.locator('#cameraState').textContent(),/Getting the camera ready/);
+ await page.evaluate(()=>window.dispatchEvent(new Event('blur')));
+ assert.equal(await page.locator('#cameraStop').isEnabled(),true,'camera permission focus change does not cancel setup');
  await page.locator('#cameraStop').click();await page.waitForFunction(()=>!document.querySelector('#cameraStart').disabled);
  assert.equal(await page.locator('video').evaluate(v=>v.srcObject),null);await page.unroute('**/tracker-worker.js');
  await mkdir('.local',{recursive:true});await page.screenshot({path:'.local/studio-desktop.png',fullPage:true});

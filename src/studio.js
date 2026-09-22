@@ -225,6 +225,7 @@ export function setupStudio({robot,log,run,refresh,preview}) {
     assertFree();const epoch=++cameraEpoch;cameraLoading=true;state();
     try {
       await tracker.start();if(epoch!==cameraEpoch||!tracker.running)return;
+      if(!document.hasFocus()){tracker.stop();return;}
       if(robot.connected){await motion.sync();if(epoch!==cameraEpoch||!tracker.running)return;await robot.arm(true);if(epoch!==cameraEpoch||!tracker.running){await robot.arm(false);return;}mirroring=true;smoothed=null;$('mirrorState').textContent='Camera is controlling the robot';}
       else $('mirrorState').textContent='Camera is controlling the on-screen robot';
     } catch(error) {
@@ -291,7 +292,7 @@ export function setupStudio({robot,log,run,refresh,preview}) {
   action('resetTests',()=>{diagnostics.reset();diagnosticMode=false;$('testEvidence').textContent='Ready';renderTest();});
   document.querySelectorAll('[data-result]').forEach(button=>button.onclick=()=>run(()=>{diagnostics.mark(button.dataset.result,$('testNotes').value);$('testNotes').value='';if(!diagnostics.step)diagnosticMode=false;store('meccanoid.lastReport',diagnostics.report());renderTest();state();}));
   action('exportReport',()=>download('meccanoid-system-test.json',diagnostics.report()));
-  window.addEventListener('blur',()=>{if(capturing||captureStarting)endCapture('Capture stopped when window lost focus; previous limits retained.');cameraEpoch++;tracker.stop();signals=null;cancelProducers();finishRecording();diagnostics.abort();diagnosticMode=false;state();});
+  window.addEventListener('blur',()=>{if(capturing||captureStarting)endCapture('Capture stopped when window lost focus; previous limits retained.');if(cameraLoading)return;cameraEpoch++;tracker.stop();signals=null;cancelProducers();finishRecording();diagnostics.abort();diagnosticMode=false;state();});
   document.addEventListener('visibilitychange',()=>{if(document.hidden){cameraEpoch++;tracker.stop();signals=null;cancelProducers();}});
   window.addEventListener('pagehide',()=>{cameraEpoch++;tracker.stop();synth?.cancel();$('audioPlayer').pause();});
   function state() {
