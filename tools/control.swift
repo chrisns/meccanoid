@@ -11,6 +11,10 @@ final class Controller: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
  var pinSent = false
  var pose: [UInt8]?
  var heartbeat: Timer?
+ var captureTimer: Timer?
+ var captureStart: [UInt8]?
+ var captureMin: [UInt8]?
+ var captureMax: [UInt8]?
  var busy = false
  var epoch = 0
  override init() { super.init(); central = CBCentralManager(delegate:self,queue:nil) }
@@ -43,13 +47,21 @@ final class Controller: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
  func peripheral(_ peripheral:CBPeripheral,didUpdateValueFor characteristic:CBCharacteristic,error:Error?) {
   guard let data=characteristic.value else{return};let b=Array(data)
   guard b.count==20,b.prefix(18).reduce(0,{$0+Int($1)}) == Int(b[18])*256+Int(b[19]) else{print("INVALID RX \(data as NSData)");return}
-  if b[0] != 1 {print("RX "+b.map{String(format:"%02x",$0)}.joined(separator:" "))}
+  if b[0] != 1 && !(b[0] == 9 && captureTimer != nil) {print("RX "+b.map{String(format:"%02x",$0)}.joined(separator:" "))}
   if b[0]==0x1a && !authenticated {
    if Array(b[1...3]) == [0,1,255] {print("PIN REJECTED");return}
    authenticated=true;print("AUTHENTICATED — ready for commands");send([0x0d,2,2,0,0,255,255]);send([9])
    heartbeat=Timer.scheduledTimer(withTimeInterval:1,repeats:true){_ in self.send([1],quiet:true)}
   }
-  if b[0]==9 {pose=Array(b[1...8]);print("POSE \(pose!)")}
+  if b[0]==9 {
+   pose=Array(b[1...8])
+   if captureTimer != nil,let current=pose {
+    if captureStart == nil {captureStart=current;captureMin=current;captureMax=current;print("CAPTURE NEUTRAL \(current)")}
+    let oldMin=captureMin!,oldMax=captureMax!
+    captureMin=zip(oldMin,current).map(min);captureMax=zip(oldMax,current).map(max)
+    if captureMin! != oldMin || captureMax! != oldMax {print("CAPTURE min=\(captureMin!) max=\(captureMax!)")}
+   } else {print("POSE \(pose!)")}
+  }
   if b[0]==1 {let summary="STATUS buttons=\(b[8]) batteryCode=\(b[12]) LIM=\(b[13]) presets=\(b[14]) error=\(b[16])";if summary != lastStatus {print(summary);lastStatus=summary}}
  }
  var lastStatus=""
@@ -69,6 +81,16 @@ final class Controller: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
    print("Local clock sent; verify with read 29 and preset 18")
   case "status":lastStatus="";send([1])
   case "pose":send([9])
+  case "capture":
+   guard captureTimer == nil else{print("CAPTURE ALREADY RUNNING");return}
+   captureStart=nil;captureMin=nil;captureMax=nil
+   send([0x0b]+Array(repeating:4,count:16));print("CAPTURE STARTED — move joints gently; type finish when done")
+   captureTimer=Timer.scheduledTimer(withTimeInterval:0.25,repeats:true){_ in self.send([9],quiet:true)}
+  case "finish":
+   captureTimer?.invalidate();captureTimer=nil
+   if let start=captureStart,let low=captureMin,let high=captureMax {
+    print("CAPTURE RESULT neutral=\(start) min=\(low) max=\(high)")
+   } else {print("NO CAPTURE SAMPLES")}
   case "eyes":if nums.count==3 && nums.allSatisfy({0...7 ~= $0}) {send([0x11,0,0,UInt8(nums[1]*8+nums[0]),UInt8(nums[2])])}
   case "chest":if nums.count==1 && 0...15 ~= nums[0] {send([0x1c]+(0..<4).map{UInt8((nums[0]>>$0)&1)})}
   case "led":if nums.count==2 && 0...7 ~= nums[0] && 0...7 ~= nums[1] {var colours=Array(repeating:UInt8(0),count:8);colours[nums[0]]=UInt8(nums[1]);send([0x0c]+colours+Array(repeating:4,count:8)+[0])}
@@ -103,7 +125,7 @@ final class Controller: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
   case "preset":if nums.count>=1 && 1...255 ~= nums[0] {let variant=nums.count>1 ? nums[1]:0;if 0...255 ~= variant {pose=nil;send([0x19,UInt8(nums[0]),UInt8(variant)])}}
   case "lim":if nums.count==1 && 1...255 ~= nums[0] {pose=nil;send([0x15,UInt8(nums[0])])}
   case "stop":epoch += 1;busy=false;send([0x0d,2,2,0,0,255,255])
-  default:print("Commands: status | pose | read COMMAND [ARG] | clock | mode 2/4 | eyes R G B | chest MASK | led SLOT CODE | jog SLOT DELTA | sweep SLOT | wheel SIDE SIGN [SPEED] [MS] | preset ID [VARIANT] | lim SLOT | stop | quit")
+  default:print("Commands: status | pose | capture | finish | read COMMAND [ARG] | clock | mode 2/4 | eyes R G B | chest MASK | led SLOT CODE | jog SLOT DELTA | sweep SLOT | wheel SIDE SIGN [SPEED] [MS] | preset ID [VARIANT] | lim SLOT | stop | quit")
   }
  }
 }

@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from '../vendor/three/OrbitControls.js';
-import { defaultCalibration, calibratedPose, clamp } from './joints.js';
+import { defaultCalibration, calibratedPose, clamp, MEASURED_NEUTRAL } from './joints.js';
 
-/** Procedural G15KS-style model. Angles illustrate intent; measured travel remains TBC. */
+/** Procedural G15KS-style model driven by measured raw ranges; rendered angles are approximate. */
 export class RobotPreview {
-  targets=Array(8).fill(0);joints=[];wheels=[];speed=[0,0];virtualPose=Array(8).fill(128);
+  targets=Array(8).fill(0);joints=[];wheels=[];speed=[0,0];virtualPose=[...MEASURED_NEUTRAL];
   constructor(host,status) {
     this.host=host;this.status=status;
     try {
@@ -32,7 +32,7 @@ export class RobotPreview {
         this.controls.update();if(this.dirty||moving){this.renderer.render(this.scene,this.camera);this.dirty=false;}
       };this.frame=requestAnimationFrame(animate);
       addEventListener('pagehide',()=>this.dispose(),{once:true});
-      host.dataset.ready='true';status.textContent='On-screen preview · movement ranges TBC';
+      host.dataset.ready='true';status.textContent='On-screen preview · measured joint ranges';
     }catch(error){host.dataset.ready='false';status.textContent='3D preview needs WebGL. Robot controls still work.';this.renderer?.dispose();}
   }
   build() {
@@ -70,8 +70,8 @@ export class RobotPreview {
       const hand=group(elbow,0,-.67,0);box(hand,.20,.15,.065,materials.metal);
       for(let f=0;f<3;f++){const finger=box(hand,.045,.17,.055,materials.metal,-.068+f*.068,-.12,.03);finger.rotation.x=-.3;}
       const thumb=box(hand,.12,.045,.055,materials.metal,side*.14,-.015,.03);thumb.rotation.z=side*.3;
-      if(side===-1){this.joints[0]={group:elbow,axis:'x',scale:-1.8};this.joints[1]={group:lift,axis:'z',scale:-1.4};this.joints[2]={group:swing,axis:'x',scale:-1.3};}
-      else{this.joints[3]={group:swing,axis:'x',scale:-1.3};this.joints[4]={group:lift,axis:'z',scale:1.4};this.joints[5]={group:elbow,axis:'x',scale:-1.8};}
+      if(side===-1){this.joints[0]={group:elbow,axis:'x',scale:-2.2};this.joints[1]={group:lift,axis:'z',scale:2.9};this.joints[2]={group:swing,axis:'x',scale:-2.6};}
+      else{this.joints[3]={group:swing,axis:'x',scale:2.6};this.joints[4]={group:lift,axis:'z',scale:2.9};this.joints[5]={group:elbow,axis:'x',scale:-2.2};}
     }
     rail(this.model,.31,.09,materials.metal,-.07,2.55);rail(this.model,.31,.09,materials.metal,.07,2.55);
     const turn=group(this.model,0,2.69,0),tilt=group(turn);box(tilt,.20,.12,.18,materials.metal);
@@ -88,7 +88,7 @@ export class RobotPreview {
   resetView() {if(!this.camera)return;this.camera.position.set(3.7,2.9,6.7);this.controls.target.set(0,1.54,0);this.controls.update();this.dirty=true;}
   setPose(pose,calibration=defaultCalibration(),label='Joint targets · approximate preview') {
     if(!this.joints.length||!pose)return;
-    this.targets=calibration.map((c,i)=>{const delta=pose[c.slot]-c.centre,span=delta>=0?c.max-c.centre:c.centre-c.min;return clamp(span?delta/span:0,-1,1)*(c.reversed?-1:1)*this.joints[i].scale;});
+    this.targets=calibration.map((c,i)=>{const delta=pose[c.slot]-c.centre,span=Math.max(c.max-c.centre,c.centre-c.min);return clamp(span?delta/span:0,-1,1)*this.joints[i].scale;});
     this.host.dataset.pose=JSON.stringify(pose);this.host.dataset.source=label;this.status.textContent=label;this.dirty=true;
   }
   setSignals(signals,calibration,gain) {

@@ -33,7 +33,7 @@ export class MotionController extends EventTarget {
     const target = [...this.current];
     for (const c of config) {
       if (c.enabled) {
-        if (this.current[c.slot] < c.min || this.current[c.slot] > c.max) throw new Error(`${c.key}: current position is outside its calibrated limits`);
+        if (this.current[c.slot] < 24 || this.current[c.slot] > 232) throw new Error(`${c.key}: current position is outside the robot encoding range`);
         target[c.slot] = clamp(positions[c.slot],c.min,c.max);
       }
     }

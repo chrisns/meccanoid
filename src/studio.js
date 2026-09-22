@@ -2,7 +2,7 @@ import { JOINT_KEYS } from './keyboard.js';
 import { JOINTS, defaultCalibration, validateCalibration, calibratedPose, clamp } from './joints.js';
 import { MotionController, validateSequence } from './motion.js';
 import { BodyTracker } from './tracker.js';
-import { bodySignals, mirrorSignals, relativeSignals } from './tracking-math.js';
+import { bodySignals, mirrorSignals } from './tracking-math.js';
 import { DiagnosticSession, diagnosticSteps } from './diagnostics.js';
 const $=id=>document.getElementById(id);
 const storageKey=key=>new URLSearchParams(location.search).get('practice')==='1'?`practice.${key}`:key;
@@ -18,19 +18,26 @@ async function loadFile(input) {
 }
 export function setupStudio({robot,log,run,refresh,preview}) {
   const motion=new MotionController(robot),tracker=new BodyTracker($('camera'),$('landmarks')),diagnostics=new DiagnosticSession(robot);
-  let calibration;try{calibration=validateCalibration(read('meccanoid.calibration',defaultCalibration()));}catch{calibration=defaultCalibration();}
+  let calibration;
+  try {
+    const stored=read('meccanoid.calibration',null),version=read('meccanoid.calibrationVersion',0);
+    if(stored&&version!==2)localStorage.setItem(storageKey('meccanoid.calibrationBeforeMeasured'),JSON.stringify(stored));
+    calibration=version===2&&stored?validateCalibration(stored):defaultCalibration();
+  } catch {calibration=defaultCalibration();}
+  localStorage.setItem(storageKey('meccanoid.calibration'),JSON.stringify(calibration));
+  localStorage.setItem(storageKey('meccanoid.calibrationVersion'),'2');
   let saved=read('meccanoid.poses',[]);if(!Array.isArray(saved))saved=[];
   saved=saved.filter(v=>typeof v.name==='string'&&Array.isArray(v.pose)&&v.pose.length===8&&v.pose.every(n=>Number.isInteger(n)&&n>=0&&n<=255)).slice(0,50);
   let labels=read('meccanoid.presetLabels',{});if(!labels||Array.isArray(labels)||typeof labels!=='object')labels={};
   let presetBank=new Map();
-  let signals=null,neutral=null,smoothed=null,mirroring=false,lastFrame=0;
+  let signals=null,smoothed=null,mirroring=false,cameraStalled=false,recoveringPose=false,lastFrame=0,manualOverrideUntil=0;
   let sequence=null,recording=false,recordStart=0,recordTimer,playTimer,playing=false,playEpoch=0;
-  let cameraLoading=false,diagnosticMode=false,audioURL,neutralCaptureAt=null;
+  let cameraLoading=false,cameraEpoch=0,diagnosticMode=false,audioURL;
   let capturing=false,captureStarting=false,captureEpoch=0,captureTimer,rangeSamples=null;
   const cards=[],calRows=[];
   const store=(key,value)=>localStorage.setItem(storageKey(key),JSON.stringify(value));
   function stopReplay() {playing=false;playEpoch++;clearTimeout(playTimer);}
-  function pauseMirror(message='Mirroring paused') {
+  function pauseMirror(message='Camera control stopped') {
     mirroring=false;$('mirrorState').textContent=message;
   }
   function cancelProducers() {pauseMirror();stopReplay();motion.cancel();}
@@ -39,7 +46,7 @@ export function setupStudio({robot,log,run,refresh,preview}) {
     $('sequenceState').textContent=sequence?.frames.length?`${sequence.frames.length} frames · ${(sequence.frames.at(-1).time/1000).toFixed(1)} seconds`:'No sequence loaded';state();
   }
   async function halt() {
-    cancelProducers();finishRecording();diagnostics.abort();diagnosticMode=false;
+    cameraEpoch++;tracker.stop();signals=null;cancelProducers();finishRecording();diagnostics.abort();diagnosticMode=false;
     if(robot.connected)await robot.arm(false);
     refresh();state();
   }
@@ -47,7 +54,7 @@ export function setupStudio({robot,log,run,refresh,preview}) {
   function assertFree() {if(capturing||captureStarting)throw new Error('Finish range capture before using other controls');if(diagnosticMode)throw new Error('Stop the system test before using other controls');}
   function assertPose(){if(!motion.current)throw new Error('Read the current robot pose first');}
   function renderPose() {
-    if(!(tracker.running&&location.hash==='#copy'))preview?.setPose(motion.active?motion.target:motion.current,calibration);
+    if(!(tracker.running&&location.hash==='#copy')||performance.now()<manualOverrideUntil)preview?.setPose(motion.active?motion.target:motion.current,calibration);
     cards.forEach((card,i)=>{
       const value=motion.current?.[calibration[i].slot];
       card.output.textContent=value??'—';card.slider.min=calibration[i].min;card.slider.max=calibration[i].max;
@@ -69,22 +76,34 @@ export function setupStudio({robot,log,run,refresh,preview}) {
     calibration=next;store('meccanoid.calibration',calibration);renderPose();
     $('calibrationStatus').textContent=`Saved · ${calibration.filter(c=>c.enabled).length} verified joints enabled`;
   }
+  function nudgeJoint(index,direction) {
+    assertFree();manualOverrideUntil=performance.now()+180;stopReplay();assertPose();
+    const c=calibration[index],base=motion.active?motion.target:motion.current;
+    motion.setJointTarget(c.slot,clamp(base[c.slot]+direction*4,c.min,c.max),calibration);
+  }
+  function bindJointHold(button,index,direction) {
+    let active=false,timer;
+    const pulse=()=>{if(!active)return;run(()=>nudgeJoint(index,direction));timer=setTimeout(pulse,100);};
+    const finish=()=>{if(!active)return;active=false;clearTimeout(timer);button.classList.remove('held-key');manualOverrideUntil=performance.now()+80;motion.cancel();};
+    button.addEventListener('pointerdown',event=>{if(button.disabled)return;event.preventDefault();active=true;button.classList.add('held-key');button.setPointerCapture(event.pointerId);pulse();});
+    for(const event of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(event,finish);
+    button.addEventListener('keydown',event=>{if(event.key!=='Enter'||event.repeat||button.disabled)return;event.preventDefault();active=true;button.classList.add('held-key');pulse();});
+    button.addEventListener('keyup',event=>{if(event.key==='Enter'){event.preventDefault();finish();}});
+    button.addEventListener('blur',finish);
+    button.onclick=event=>event.preventDefault();
+  }
   JOINTS.forEach((joint,i)=>{
     const card=document.createElement('div');card.className='joint-card';
     const heading=document.createElement('h3');heading.textContent=joint.label;
     const output=document.createElement('output');output.textContent='—';
     const label=document.createElement('label');label.append(heading,output);
     const slider=document.createElement('input');slider.type='range';slider.min=88;slider.max=168;slider.value=128;slider.setAttribute('aria-label',joint.label);
-    slider.oninput=()=>run(()=>{assertFree();pauseMirror();stopReplay();assertPose();motion.setJointTarget(calibration[i].slot,Number(slider.value),calibration);});
+    slider.oninput=()=>run(()=>{assertFree();manualOverrideUntil=performance.now()+220;stopReplay();assertPose();motion.setJointTarget(calibration[i].slot,Number(slider.value),calibration);});
     const toolbar=document.createElement('div');toolbar.className='toolbar';
     const buttons=[];
     for(const direction of [-1,1]){
       const button=document.createElement('button');const shortcut=direction<0?JOINT_KEYS[i].minus:JOINT_KEYS[i].plus;button.textContent=`${shortcut.toUpperCase()} ${direction<0?'−4':'＋4'}`;button.dataset.key=shortcut;button.setAttribute('aria-keyshortcuts',shortcut.toUpperCase());button.title=`Small nudge: ${joint.label}`;
-      button.onclick=()=>run(()=>{
-        assertFree();pauseMirror();stopReplay();assertPose();
-        const c=calibration[i],base=motion.active?motion.target:motion.current;
-        motion.setJointTarget(c.slot,clamp(base[c.slot]+direction*4,c.min,c.max),calibration);
-      });toolbar.append(button);buttons.push(button);
+      bindJointHold(button,i,direction);toolbar.append(button);buttons.push(button);
     }
     card.append(label,slider,toolbar);$('jointControls').append(card);cards.push({output,slider,buttons});
     const row=document.createElement('tr'),name=document.createElement('td');name.textContent=joint.label;row.append(name);const inputs={};
@@ -130,8 +149,8 @@ export function setupStudio({robot,log,run,refresh,preview}) {
     if(recording&&sequence.frames.length<600){const time=Math.round(performance.now()-recordStart);if(time<=60000&&(!sequence.frames.length||time>sequence.frames.at(-1).time))sequence.frames.push({time,pose:[...detail]});}
     state();
   });
-  motion.addEventListener('error',e=>{pauseMirror(e.detail);stopReplay();log(e.detail);state();});
-  robot.addEventListener('stop',()=>{pauseMirror();stopReplay();if(capturing)endCapture('Range capture stopped; previous limits retained.');});
+  motion.addEventListener('error',e=>{if(!tracker.running)pauseMirror(e.detail);stopReplay();log(e.detail);state();});
+  robot.addEventListener('stop',()=>{if(!tracker.running)pauseMirror();stopReplay();if(capturing)endCapture('Range capture stopped; previous limits retained.');});
   robot.addEventListener('armed',e=>{if(!e.detail){cancelProducers();diagnostics.abort();diagnosticMode=false;}state();});
   robot.addEventListener('state',()=>{if(!robot.connected){endCapture('Disconnected; previous limits retained.');presetBank=new Map();cancelProducers();finishRecording();diagnosticMode=false;renderBank();renderPose();}state();});
   function endCapture(message) {
@@ -164,11 +183,11 @@ export function setupStudio({robot,log,run,refresh,preview}) {
   action('finishRangeCapture',()=>{
     if(!capturing)throw new Error('Start range capture first');
     const next=calibration.map((c,i)=>{
-      const r=rangeSamples[i];return r&&r.max-r.min>=8?{...c,min:r.min,max:r.max,centre:r.centre}:c;
+      const r=rangeSamples[i];return r&&r.max-r.min>=10?{...c,min:r.min+4,max:r.max-4,centre:r.centre}:c;
     });
-    const count=rangeSamples.filter(r=>r&&r.max-r.min>=8).length;
+    const count=rangeSamples.filter(r=>r&&r.max-r.min>=10).length;
     calibration=validateCalibration(next);store('meccanoid.calibration',calibration);
-    endCapture(`Saved measured limits for ${count} joints. Joints moved less than 8 units kept their previous limits. Motion remains disabled.`);renderCalibration();
+    endCapture(`Saved measured limits for ${count} joints with a four-unit safety margin. Joints moved less than 10 units kept their previous limits. Motion remains disabled.`);renderCalibration();
   });
   action('cancelRangeCapture',()=>endCapture('Capture discarded; previous limits retained.'));
   action('halt',halt);
@@ -179,7 +198,7 @@ export function setupStudio({robot,log,run,refresh,preview}) {
     calibration=calibration.map(c=>{const value=motion.current[c.slot];if(value<24||value>232)throw new Error(`Slot ${c.slot} is outside 24–232; check the wiring test first`);if(value<c.min||value>c.max)throw new Error(`Slot ${c.slot}: neutral is outside your saved limits; update its limits first`);return {...c,centre:value};});
     store('meccanoid.calibration',calibration);renderCalibration();$('calibrationStatus').textContent='Neutral captured. Your travel limits are unchanged.';
   });
-  action('resetLimits',async()=>{assertFree();cancelProducers();if(robot.connected)await robot.stop();calibration=calibration.map(c=>({...c,min:24,max:232}));store('meccanoid.calibration',calibration);renderCalibration();$('calibrationStatus').textContent='Encoding range restored. Capture comfortable physical limits before mirroring.';});
+  action('resetLimits',async()=>{assertFree();cancelProducers();if(robot.connected)await robot.stop();calibration=defaultCalibration();store('meccanoid.calibration',calibration);renderCalibration();$('calibrationStatus').textContent='Measured G15KS centres and safe limits restored.';});
   action('exportCalibration',()=>download('meccanoid-calibration.json',{version:1,joints:calibration}));
   $('importCalibration').onchange=()=>run(async()=>{assertFree();const data=await loadFile($('importCalibration'));if(!data)return;if(data.version!==1)throw new Error('Unsupported calibration version');const next=validateCalibration(data.joints);cancelProducers();if(robot.connected)await robot.stop();calibration=next;store('meccanoid.calibration',calibration);renderCalibration();state();});
   action('savePose',()=>{assertPose();if(saved.length>=50)throw new Error('Maximum 50 saved poses');saved.push({name:$('poseName').value.trim()||`Pose ${saved.length+1}`,pose:[...motion.current]});store('meccanoid.poses',saved);renderSaved();});
@@ -202,24 +221,33 @@ export function setupStudio({robot,log,run,refresh,preview}) {
   action('stopSequence',async()=>{stopReplay();motion.cancel();if(robot.connected)await robot.stop();$('sequenceState').textContent='Replay stopped';});
   action('exportSequence',()=>{if(!sequence?.frames.length)throw new Error('No recorded sequence');download('meccanoid-sequence.json',validateSequence(sequence));});
   $('importSequence').onchange=()=>run(async()=>{const data=await loadFile($('importSequence'));if(!data)return;const next=validateSequence(data);cancelProducers();finishRecording();sequence=next;$('sequenceState').textContent=`Loaded ${sequence.frames.length} frames. Replay applies current joint limits.`;state();});
-  action('cameraStart',async()=>{cameraLoading=true;state();try{await tracker.start();}finally{cameraLoading=false;state();}});
-  action('cameraStop',async()=>{pauseMirror();tracker.stop();signals=null;neutral=null;if(robot.connected)await robot.stop();});
-  tracker.addEventListener('state',e=>{$('cameraState').textContent=e.detail;if(!tracker.running){pauseMirror();signals=null;neutral=null;neutralCaptureAt=null;$('neutralStatus').textContent='Start the camera to capture your neutral stance.';}state();});
-  tracker.addEventListener('error',e=>{pauseMirror(e.detail);signals=null;log(`Camera: ${e.detail}`);if(robot.connected)run(()=>robot.stop());state();});
+  action('cameraStart',async()=>{
+    assertFree();const epoch=++cameraEpoch;cameraLoading=true;state();
+    try {
+      await tracker.start();if(epoch!==cameraEpoch||!tracker.running)return;
+      if(robot.connected){await motion.sync();if(epoch!==cameraEpoch||!tracker.running)return;await robot.arm(true);if(epoch!==cameraEpoch||!tracker.running){await robot.arm(false);return;}mirroring=true;smoothed=null;$('mirrorState').textContent='Camera is controlling the robot';}
+      else $('mirrorState').textContent='Camera is controlling the on-screen robot';
+    } catch(error) {
+      if(epoch===cameraEpoch){tracker.stop();if(robot.connected)await robot.arm(false);throw error;}
+    } finally {cameraLoading=false;refresh();state();}
+  });
+  action('cameraStop',async()=>{cameraEpoch++;tracker.stop();signals=null;pauseMirror();motion.cancel();if(robot.connected)await robot.arm(false);});
+  tracker.addEventListener('state',e=>{$('cameraState').textContent=e.detail;if(!tracker.running){pauseMirror();signals=null;smoothed=null;}state();});
+  tracker.addEventListener('error',e=>{pauseMirror(e.detail);signals=null;log(`Camera: ${e.detail}`);if(robot.connected)run(()=>robot.arm(false));state();});
   for(const joint of JOINTS){const row=document.createElement('div');row.className='tracking-row';const name=document.createElement('span');name.textContent=joint.label;const meter=document.createElement('meter');meter.id=`signal-${joint.key}`;meter.min=-1;meter.max=1;meter.value=0;row.append(name,meter);$('trackingBars').append(row);}
   tracker.addEventListener('frame',({detail})=>{
     lastFrame=performance.now();const raw=bodySignals(detail.world,detail.landmarks);signals=mirrorSignals(raw,$('mirrorSides').checked);
-    if(!signals){preview?.trackingLost();$('cameraState').textContent='Tracking lost — show shoulders, hips, elbows and wrists';smoothed=null;if(mirroring){pauseMirror('Tracking lost — mirroring stopped');motion.cancel();if(robot.connected)run(()=>robot.stop());}state();return;}
-    $('cameraState').textContent='Body tracked · camera preview';
-    if(neutralCaptureAt!==null && performance.now()>=neutralCaptureAt) {
-      neutral={...signals};smoothed=null;neutralCaptureAt=null;
-      $('neutralStatus').textContent='Neutral stance captured. Start mirroring when the robot is ready.';
-    }
-    const relative=neutral?relativeSignals(signals,neutral):signals;
-    if(location.hash==='#copy')preview?.setSignals(relative,calibration,Number($('mirrorGain').value)/100);
+    if(!signals){preview?.trackingLost();$('cameraState').textContent='Step into view — robot stopped';smoothed=null;if(mirroring&&!cameraStalled){cameraStalled=true;motion.cancel();if(robot.connected)run(()=>robot.stop());}state();return;}
+    cameraStalled=false;$('cameraState').textContent=mirroring?'Body tracked · controlling robot':'Body tracked · on-screen preview';
+    const relative=signals;
+    if(location.hash==='#copy'&&performance.now()>=manualOverrideUntil)preview?.setSignals(relative,calibration,Number($('mirrorGain').value)/100);
     for(const joint of JOINTS)$(`signal-${joint.key}`).value=relative[joint.key]??0;
-    if(mirroring){
+    if(mirroring&&performance.now()>=manualOverrideUntil){
       try {
+        if(!motion.current){
+          if(!recoveringPose){recoveringPose=true;run(async()=>{try{await motion.sync();}catch(error){pauseMirror('Camera control paused — pose read failed');throw error;}finally{recoveringPose=false;}});}
+          return;
+        }
         if(!smoothed)smoothed={};
         for(const key of Object.keys(smoothed))if(!Number.isFinite(relative[key]))delete smoothed[key];
         for(const [key,value] of Object.entries(relative))smoothed[key]=smoothed[key]===undefined?value:smoothed[key]*0.7+value*0.3;
@@ -228,22 +256,9 @@ export function setupStudio({robot,log,run,refresh,preview}) {
     }
     state();
   });
-  setInterval(()=>{if(mirroring&&performance.now()-lastFrame>1000){pauseMirror('Camera stalled — mirroring stopped');motion.cancel();if(robot.connected)run(()=>robot.stop());state();}},250);
-  $('mirrorSides').onchange=()=>run(async()=>{pauseMirror();neutral=null;neutralCaptureAt=null;smoothed=null;if(robot.connected)await robot.stop();$('neutralStatus').textContent='Mirror direction changed. Capture neutral again.';state();});
+  setInterval(()=>{if(mirroring&&!cameraStalled&&performance.now()-lastFrame>1000){cameraStalled=true;$('mirrorState').textContent='Waiting for camera — robot stopped';motion.cancel();if(robot.connected)run(()=>robot.stop());state();}},250);
+  $('mirrorSides').onchange=()=>{smoothed=null;};
   $('mirrorGain').oninput=()=>$('gainValue').textContent=`${$('mirrorGain').value}%`;
-  action('humanNeutral',async()=>{
-    if(!tracker.running)throw new Error('Start the camera first');
-    pauseMirror();motion.cancel();neutral=null;smoothed=null;neutralCaptureAt=performance.now()+3000;
-    $('neutralStatus').textContent='Capturing in 3 seconds — step back into your neutral stance.';
-    if(robot.connected)await robot.stop();
-  });
-  setInterval(()=>{
-    if(neutralCaptureAt===null)return;
-    const seconds=Math.ceil((neutralCaptureAt-performance.now())/1000);
-    $('neutralStatus').textContent=seconds>0?`Capturing in ${seconds} seconds — step back into your neutral stance.`:'Ready to capture — show your shoulders, hips, elbows and wrists.';
-  },250);
-  action('mirrorStart',()=>{assertFree();assertPose();if(!robot.armed)throw new Error('Enable motion controls first');if(!signals||!neutral||performance.now()-lastFrame>1000)throw new Error('Start the camera and capture a neutral stance');if(!calibration.some(c=>c.enabled))throw new Error('Verify and enable at least one joint');stopReplay();smoothed=null;mirroring=true;$('mirrorState').textContent='Mirroring live · verified joints only';});
-  action('mirrorStop',async()=>{pauseMirror();motion.cancel();if(robot.connected)await robot.stop();});
   action('syncClock',async()=>{const now=new Date();await robot.syncClock(now);$('clockState').textContent=`Clock sent: ${now.toLocaleString()}. Verify with TELL TIME.`;});
   action('refreshBank',async()=>{$('bankState').textContent='Reading names from the robot…';const entries=await robot.readPresetBank();presetBank=new Map(entries.map(e=>[e.id,e.name]));renderBank();});
   $('presetSelect').onchange=()=>$('presetLabel').value=labels[$('presetSelect').value]??'';
@@ -276,9 +291,9 @@ export function setupStudio({robot,log,run,refresh,preview}) {
   action('resetTests',()=>{diagnostics.reset();diagnosticMode=false;$('testEvidence').textContent='Ready';renderTest();});
   document.querySelectorAll('[data-result]').forEach(button=>button.onclick=()=>run(()=>{diagnostics.mark(button.dataset.result,$('testNotes').value);$('testNotes').value='';if(!diagnostics.step)diagnosticMode=false;store('meccanoid.lastReport',diagnostics.report());renderTest();state();}));
   action('exportReport',()=>download('meccanoid-system-test.json',diagnostics.report()));
-  window.addEventListener('blur',()=>{if(capturing||captureStarting)endCapture('Capture stopped when window lost focus; previous limits retained.');cancelProducers();finishRecording();diagnostics.abort();diagnosticMode=false;state();});
-  document.addEventListener('visibilitychange',()=>{if(document.hidden){tracker.stop();signals=null;cancelProducers();}});
-  window.addEventListener('pagehide',()=>{tracker.stop();synth?.cancel();$('audioPlayer').pause();});
+  window.addEventListener('blur',()=>{if(capturing||captureStarting)endCapture('Capture stopped when window lost focus; previous limits retained.');cameraEpoch++;tracker.stop();signals=null;cancelProducers();finishRecording();diagnostics.abort();diagnosticMode=false;state();});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){cameraEpoch++;tracker.stop();signals=null;cancelProducers();}});
+  window.addEventListener('pagehide',()=>{cameraEpoch++;tracker.stop();synth?.cancel();$('audioPlayer').pause();});
   function state() {
     const teaching=capturing||captureStarting;
     const available=robot.connected&&robot.armed&&!diagnosticMode&&!teaching;
@@ -292,9 +307,6 @@ export function setupStudio({robot,log,run,refresh,preview}) {
     $('savePose').disabled=!motion.current;
     $('cameraStart').disabled=cameraLoading||tracker.running;$('cameraStop').disabled=!tracker.running;
     $('cameraStop').textContent=cameraLoading?'Cancel camera setup':'Camera off';
-    $('humanNeutral').disabled=!tracker.running||cameraLoading;
-    $('mirrorStart').disabled=!available||!motion.current||!neutral||!signals||mirroring;
-    $('mirrorStop').disabled=!mirroring;
     $('recordSequence').disabled=!available||!motion.current||recording;$('finishSequence').disabled=!recording;
     $('playSequence').disabled=!available||!motion.current||!sequence?.frames.length||recording||playing;
     $('stopSequence').disabled=!playing;
@@ -311,12 +323,14 @@ export function setupStudio({robot,log,run,refresh,preview}) {
   }
   renderSaved();renderTest();renderBank();state();
   return {state,halt,
-    async keyboardDrive(direction,valid){assertFree();await this.beforeManual();if(valid())await robot.moveDirection(direction,250);},
+    async keyboardDrive(direction,valid){assertFree();manualOverrideUntil=performance.now()+500;motion.cancel();if(valid())await robot.holdDirection(direction,700);},
+    async holdDrive(direction){assertFree();manualOverrideUntil=performance.now()+500;motion.cancel();await robot.holdDirection(direction,700);},
     async keyboardNudge(deltas,valid){
-      assertFree();pauseMirror();stopReplay();if(!motion.current)await motion.sync();if(!valid())return;
+      assertFree();manualOverrideUntil=performance.now()+180;stopReplay();if(!motion.current)await motion.sync();if(!valid())return;
       const base=motion.active?motion.target:motion.current,pose=[...base];
       const config=calibration.map((c,i)=>{if(deltas[i])pose[c.slot]=clamp(base[c.slot]+deltas[i],c.min,c.max);return {...c,enabled:Boolean(deltas[i])};});
       motion.setTarget(pose,config);
     },
-    async syncPose(){await motion.sync();renderPose();state();},async navigate(){cancelProducers();diagnostics.abort();diagnosticMode=false;if(robot.connected)await robot.stop();state();},async beforeManual(){assertFree();cancelProducers();motion.current=null;renderPose();await robot.stop();},get diagnostics(){return diagnostics;}};
+    releaseJoint(){manualOverrideUntil=performance.now()+80;motion.cancel();},
+    async syncPose(){await motion.sync();renderPose();state();},async navigate(){cameraEpoch++;tracker.stop();signals=null;cancelProducers();diagnostics.abort();diagnosticMode=false;if(robot.connected)await robot.stop();state();},async beforeManual(){assertFree();cameraEpoch++;tracker.stop();signals=null;cancelProducers();motion.current=null;renderPose();await robot.stop();},get diagnostics(){return diagnostics;}};
 }

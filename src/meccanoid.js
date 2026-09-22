@@ -80,6 +80,7 @@ export class Meccanoid extends EventTarget {
   #requests = new Map();
   #servoControl = false;
   #routineActive = false;
+  #heldDirection = null;
   #teaching = false;
   positions = null;
   status = null;
@@ -104,6 +105,7 @@ export class Meccanoid extends EventTarget {
     this.armed = false;
     this.#servoControl = false;
     this.#routineActive = false;
+    this.#heldDirection = null;
     this.#teaching = false;
     this.positions = null;
     this.status = null;
@@ -230,9 +232,23 @@ export class Meccanoid extends EventTarget {
     try { await this.#send(protocol.preset(id)); }
     catch(error) { await this.stop().catch(()=>{}); throw error; }
   }
+  /** Refreshable firmware movement for press-and-hold controls. */
+  async holdDirection(direction, watchdogMilliseconds = 700) {
+    this.#requireMotion();
+    const id={forward:13,backward:14,left:15,right:16}[direction];
+    if(!id)throw new Error('Unknown direction');
+    protocol.integer(watchdogMilliseconds,250,1000,'watchdog');
+    clearTimeout(this.#timer);
+    this.#timer=setTimeout(()=>{this.stop().catch(e=>this.#emit('error',e.message));},watchdogMilliseconds);
+    if(this.#heldDirection===direction)return;
+    this.#heldDirection=direction;
+    try {await this.#send(protocol.preset(id));}
+    catch(error){await this.stop().catch(()=>{});throw error;}
+  }
   stop() {
     clearTimeout(this.#timer);
     this.#timer = undefined;
+    this.#heldDirection = null;
     this.#emit('stop', null);
     this.#epoch++; // Drop queued commands; zero speed follows the current GATT write.
     // Queue both synchronously so another producer cannot slip between them.

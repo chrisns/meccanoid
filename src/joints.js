@@ -10,8 +10,26 @@ export const JOINTS = [
   { key: 'headTilt', label: 'Head · sideways tilt', signal: 'headTilt' },
 ];
 export const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
+// Physically measured by hand on the project's G15KS on 2026-09-19.
+// Limits are inset four raw units from the observed endpoints so automatic
+// movement does not continuously load the mechanical stops.
+export const MEASURED_NEUTRAL = [134, 215, 28, 226, 36, 121, 127, 125];
+const MEASURED_LIMITS = [
+  [28, 228], [28, 228], [28, 228], [28, 228],
+  [28, 225], [28, 228], [28, 228], [71, 179],
+];
+// Mirrored servo installations need opposite signs for paired joints.
+const REVERSED = [false, true, false, true, false, true, false, false];
 export function defaultCalibration() {
-  return JOINTS.map((joint, slot) => ({ key: joint.key, slot, min: 24, max: 232, centre: 128, reversed: false, enabled: false }));
+  return JOINTS.map((joint, slot) => ({
+    key:joint.key,slot,min:MEASURED_LIMITS[slot][0],max:MEASURED_LIMITS[slot][1],
+    centre:MEASURED_NEUTRAL[slot],reversed:REVERSED[slot],enabled:true,
+  }));
+}
+export function isLegacyDefaultCalibration(value) {
+  return Array.isArray(value)&&value.length===8&&value.every((c,slot)=>
+    c?.key===JOINTS[slot].key&&c.slot===slot&&c.min===24&&c.max===232&&
+    c.centre===128&&c.reversed===false&&c.enabled===false);
 }
 export function validateCalibration(value) {
   if (!Array.isArray(value) || value.length !== 8) throw new Error('Calibration needs eight joints');

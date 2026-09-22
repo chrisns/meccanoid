@@ -45,12 +45,13 @@ export class DiagnosticSession extends EventTarget {
         const before=await this.robot.readPose();check();
         const value=before[slot];
         if(value<24||value>232)throw new Error(`Slot ${slot} returned ${value}; no movement sent because this is outside the app's position range`);
-        const target=[...before];target[slot]=value>228?value-4:value+4;
+        const limits=calibration[step.index];
+        const target=[...before];target[slot]=Math.max(limits.min,Math.min(limits.max,value>limits.max-4?value-4:value+4));
         record.evidence={slot,before:value,target:target[slot]};
         if (visible) {
           record.evidence.sweep={amplitude:24,durationMs:10000};
           for(let n=0;n<100;n++) {
-            check();const frame=[...before];frame[slot]=Math.max(24,Math.min(232,value+Math.round(Math.sin(n*Math.PI/20)*24)));
+            check();const frame=[...before];frame[slot]=Math.max(limits.min,Math.min(limits.max,value+Math.round(Math.sin(n*Math.PI/20)*24)));
             await this.robot.setPose(frame);await sleep(100);
           }
         } else {await this.robot.setPose(target);await sleep(500);}

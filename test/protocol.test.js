@@ -105,6 +105,13 @@ test('bounded firmware movement ends with STOP preset then zero wheels',async()=
  assert.deepEqual(transport.writes.slice(-3),[p.preset(13),p.preset(8),p.wheels(0,0)]);
  await robot.disconnect();
 });
+test('held firmware movement refreshes its watchdog and stops on release',async()=>{
+ const transport=new FakeTransport(),robot=new Meccanoid(transport);await robot.connect();await robot.arm(true);
+ await robot.holdDirection('forward',250);await new Promise(r=>setTimeout(r,150));await robot.holdDirection('forward',250);
+ assert.equal(transport.writes.filter(v=>v[0]===25&&v[1]===13).length,1,'refresh does not restart the routine');
+ await new Promise(r=>setTimeout(r,150));assert.equal(transport.writes.some(v=>v[0]===25&&v[1]===8),false);
+ await robot.stop();assert.deepEqual(transport.writes.slice(-2),[p.preset(8),p.wheels(0,0)]);await robot.disconnect();
+});
 test('zero wheels is attempted even if the preset STOP write fails',async()=>{
  const transport=new FakeTransport(),robot=new Meccanoid(transport);await robot.connect();await robot.arm(true);await robot.playPreset(13);
  transport.write=async b=>{transport.writes.push(b);if(b[0]===25&&b[1]===8)throw new Error('STOP failed');};

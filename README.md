@@ -13,33 +13,33 @@
 1. Open the app in **Chrome on your Chromebook**. Practice mode needs no robot.
 2. For the real thing, charge its battery, unplug USB, and turn it on. Only one browser can control it at a time.
 3. Tap **Connect robot**, choose **MECCANOID**, and press its yellow button if it asks.
-4. Pick an eye colour. Tick **Ready to move** for short wheel moves or jokes with gestures. **Stop robot** stays at the top of every activity.
+4. Pick an eye colour. Hold a direction button or arrow key to drive; release it to stop. **Stop robot** stays at the top of every activity.
 
 School-managed Chromebooks may need Bluetooth/camera permission from an administrator. Web Bluetooth requires HTTPS (provided by Pages), or localhost for development. [Chrome's supported platforms and permissions](https://developer.chrome.com/docs/capabilities/bluetooth).
 
 ## See your robot move
 
-An interactive **3D G15KS-style robot** sits beside the controls. Drag to orbit or use Reset view. Its eight joints follow slider and keyboard targets; eye and chest colours follow light commands. Wheel commands spin the preview wheels. This is an approximate illustration, not measured mechanics or physical feedback.
+An interactive **3D G15KS-style robot** sits beside the controls. Drag to orbit or use Reset view. Its eight joints follow slider and keyboard targets; eye and chest colours follow light commands. Wheel commands spin the preview wheels. Raw limits come from the physical robot; the rendered geometry and angles remain an approximate illustration rather than physical feedback.
 
-In **Copy me**, turn the camera on and stand back: the 3D robot follows your tracked arms and head even without Bluetooth or arming. Capture a neutral stance after the three-second countdown to centre your movements. The real robot still needs connection, arming and verified calibration before copying.
+In **Copy me**, connect the robot and press **Turn camera on**. That single action reads its pose, enables motion and starts controlling all eight joints. Without Bluetooth, the same camera movement drives the 3D robot only. There is no separate neutral, start or apply step. Losing tracking stops physical commands; stepping back into view resumes them.
 
-**Keyboard:** tick Ready to move, then hold arrow keys to drive. Release to stop. Joint +/− pairs, in order: right elbow **Q/A**, right lift **W/S**, right shoulder **E/D**, left shoulder **R/F**, left lift **U/J**, left elbow **I/K**, head turn **O/L**, head tilt **P/;**. The on-page Keyboard keys guide shows every shortcut. **Esc** stops and disarms anywhere; **Space** does so outside text fields. Shortcuts pause while typing or adjusting a focused slider. Losing window focus disarms the robot.
+**Keyboard:** hold arrow keys to drive and release to stop. Joint +/− pairs, in order: right elbow **Q/A**, right lift **W/S**, right shoulder **E/D**, left shoulder **R/F**, left lift **U/J**, left elbow **I/K**, head turn **O/L**, head tilt **P/;**. Keys work during camera control: a held joint key overrides tracking, and release hands that joint back to the camera. The on-page guide shows every shortcut. **Esc** stops and disarms anywhere; **Space** does so outside text fields. Losing window focus disarms the robot.
 
 ## Five places to explore
 
 | Activity | What it does |
 | --- | --- |
-| **Play** | Live eye/joint/chest lights, short directional moves, introductions, jokes, and volume controls. |
-| **Arms & head** | Eight live sliders and small nudges. Targets stay put while motors catch up. |
-| **Copy me** | Local camera tracking with a three-second get-ready timer. Camera preview works without a robot. |
+| **Play** | Live eye/joint/chest lights, press-and-hold driving, introductions, jokes, and volume controls. |
+| **Arms & head** | Eight live sliders and hold-to-move joint controls. Targets stay put while motors catch up. |
+| **Copy me** | One-button local camera control for the robot or the on-screen 3D preview. |
 | **Make a routine** | Named poses and up to a minute of recorded joint movements; JSON import/export. |
 | **Grown-ups** | Calibration, hand capture, sound bank, clock, component checks, and connection log. |
 
-**Movement ranges: TBC.** Joint identities and small/sustained test movements were verified, but comfortable full travel is not yet measured. Physical range capture and camera-to-robot copying await a charged robot and adult calibration. New 24–232 bounds are protocol encoding limits, not a claim of safe mechanical travel. Don't use unmeasured full-range movements as a child's starting activity.
+All eight joint identities and comfortable hand-moved ranges were physically measured on 19 September 2026. Observed raw ranges were 24–232 for five arm joints and head turn, 24–229 for left side lift, and 67–183 for sideways head tilt. Automatic controls use limits four raw units inside those endpoints. The measured neutral is `[134, 215, 28, 226, 36, 121, 127, 125]`; generic 128 centres were wrong for this build. When the measured defaults replace an older calibration, the previous settings are kept in local storage as `meccanoid.calibrationBeforeMeasured` (or `practice.meccanoid.calibrationBeforeMeasured`).
 
 Practice mode is explicitly labelled, uses an in-memory robot, and never requests Bluetooth. Its saved poses and calibration are separate from the real robot's. It illustrates commands; it does not simulate the robot's mechanics or verify wiring.
 
-<table><tr><td width="30%"><img src="docs/screenshots/play-mobile.png" alt="Robot club on a narrow touch screen"></td><td><img src="docs/screenshots/copy-me.png" alt="Copy me: local camera preview and simple get-ready controls"><br><img src="docs/screenshots/arms-and-head.png" alt="Eight joint sliders and the movement ranges TBC notice"></td></tr></table>
+<table><tr><td width="30%"><img src="docs/screenshots/play-mobile.png" alt="Robot club on a narrow touch screen"></td><td><img src="docs/screenshots/copy-me.png" alt="Copy me: one-button local camera control"><br><img src="docs/screenshots/arms-and-head.png" alt="Eight joint sliders with measured movement limits"></td></tr></table>
 
 Screenshots show the app's **practice mode**, not a connected physical robot.
 

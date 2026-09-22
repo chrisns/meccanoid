@@ -92,7 +92,7 @@ The large-robot UI maps slots as follows. These are expected wiring identities, 
 | 6 | Head turn — corrected by physical test |
 | 7 | Sideways head tilt — corrected by physical test |
 
-`getServoPos` sends 09; `setServoPos` sends 08 with eight positions and nine 01 bytes. The original float-to-servo conversion maps its nominal normalized angle range to raw 24–232. This is an encoding range, not proof of mechanical clearance. Studio calibration begins with narrow neutral-relative limits and no enabled joints.
+`getServoPos` sends 09; `setServoPos` sends 08 with eight positions and nine 01 bytes. The original float-to-servo conversion maps its nominal normalized angle range to raw 24–232. Physical hand capture on 2026-09-19 measured 24–232 for slots 0–3, 5 and 6; 24–229 for slot 4; and 67–183 for slot 7. Automatic defaults sit four units inside those observations and use neutral `[134,215,28,226,36,121,127,125]`.
 
 Status wire offsets (including command at offset 0): byte 8 is the button bitfield (blue 1, red 2, green 4, yellow 8); byte 12 is a battery code; byte 13 is L.I.M. count; byte 14 is preset count; byte 16 is an error code. No battery percentage/voltage conversion is claimed. `FileManager.PopulatePresets` uses the reported count. Bank items are presented numerically until the user identifies them.
 
@@ -105,4 +105,4 @@ The 2026-09-18 sustained CLI tests found that explicit servo mode 2 enables dire
 
 ### Hand-position range capture
 
-The recovered Android `setWriteState(false)` selects servo mode 4 and reads positions, while `setWriteState(true)` selects mode 2. `beginRangeCapture()` stops/disarms, selects mode 4 and blocks pose, servo/chest light and preset writes that could change servo mode. `endRangeCapture()` removes that lock without enabling motion or sending a target; the next direct command restores mode 2. Browser capture reads command 09 sequentially every 200 ms after each reply and records observed bounds. Servo release and live hand-position feedback still require hardware confirmation; mode 4 alone is not claimed as a verified torque-release command.
+The recovered Android `setWriteState(false)` selects servo mode 4 and reads positions, while `setWriteState(true)` selects mode 2. `beginRangeCapture()` stops/disarms, selects mode 4 and blocks pose, servo/chest light and preset writes that could change servo mode. `endRangeCapture()` removes that lock without enabling motion or sending a target; the next direct command restores mode 2. Browser capture reads command 09 sequentially every 200 ms after each reply and records observed bounds. Servo release and live hand-position feedback in mode 4 were physically confirmed during the eight-joint capture on 2026-09-19.

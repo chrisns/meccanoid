@@ -21,9 +21,8 @@ button.primary:disabled{background:var(--paper-2);color:var(--ink-3);border-colo
 .brand .brand-me{font-style:italic}
 .brand-dot{display:inline-block;width:8px;height:8px;flex:none;border-radius:50%;background:var(--pink);transform:translateY(-2px)}
 .brand .brand-label{margin-left:6px;font:400 12px/1 var(--font-mono);letter-spacing:.04em;color:var(--ink-3)}
-.brand .brand-flamingo{font-family:system-ui,sans-serif;font-size:22px;line-height:1;margin-left:4px}
 .camera-placeholder em{font-weight:700;color:var(--pink)}
-@media(max-width:700px){.masthead{column-gap:12px}.brand .brand-cns,.brand .brand-me{font-size:24px}.brand .brand-label{font-size:10px;margin-left:2px}.brand .brand-flamingo{font-size:19px;margin-left:0}}
+@media(max-width:700px){.masthead{column-gap:12px}.brand .brand-cns,.brand .brand-me{font-size:24px}.brand .brand-label{font-size:10px;margin-left:2px}}
 @media(max-width:380px){.masthead .brand-label{display:none}}
 
 .keyboard-guide{border:1px solid var(--ink);border-top:4px solid var(--pink);padding:var(--s-5);margin-bottom:var(--s-5)}

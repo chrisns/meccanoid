@@ -1,8 +1,9 @@
 import { packet } from './protocol.js';
+import { MEASURED_NEUTRAL } from './joints.js';
 
 /** An in-memory robot. Never requests Bluetooth or produces physical movement. */
 export class PracticeTransport extends EventTarget {
-  pose = Array(8).fill(128);
+  pose = [...MEASURED_NEUTRAL];
   async connect() { return 'Practice robot'; }
   async write(bytes) {
     const command=bytes[0];

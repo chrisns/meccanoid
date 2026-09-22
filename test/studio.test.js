@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultCalibration, validateCalibration, calibratedPose } from '../src/joints.js';
+import { defaultCalibration, isLegacyDefaultCalibration, validateCalibration, calibratedPose, MEASURED_NEUTRAL } from '../src/joints.js';
 import { bodySignals, mirrorSignals, relativeSignals } from '../src/tracking-math.js';
 import { MotionController, validateSequence } from '../src/motion.js';
 import { DiagnosticSession, diagnosticSteps } from '../src/diagnostics.js';
@@ -18,8 +18,13 @@ test('calibration rejects duplicated slots and limits outside original app range
  const c=defaultCalibration();c[1].slot=0;assert.throws(()=>validateCalibration(c),/unique/);
  const d=defaultCalibration();d[0].min=0;assert.throws(()=>validateCalibration(d),/24/);
 });
+test('measured G15KS calibration has safe physical bounds and recognises only the old untouched defaults',()=>{
+ const c=defaultCalibration();assert.deepEqual(c.map(v=>v.centre),MEASURED_NEUTRAL);assert(c.every(v=>v.enabled&&v.min>24&&v.max<232));
+ const legacy=c.map((v,slot)=>({...v,min:24,max:232,centre:128,reversed:false,enabled:false,slot}));
+ assert.equal(isLegacyDefaultCalibration(legacy),true);legacy[0].centre=129;assert.equal(isLegacyDefaultCalibration(legacy),false);
+});
 test('mirroring changes only explicitly verified joints and respects asymmetrical limits',()=>{
- const c=defaultCalibration();c[0]={...c[0],enabled:true,min:100,max:150,centre:120,reversed:true};
+ const c=defaultCalibration().map(v=>({...v,enabled:false}));c[0]={...c[0],enabled:true,min:100,max:150,centre:120,reversed:true};
  const pose=calibratedPose({rightElbow:1,leftElbow:1},c,Array(8).fill(128),1);
  assert.deepEqual(pose,[100,128,128,128,128,128,128,128]);
  assert.deepEqual(calibratedPose({rightElbow:100},c,Array(8).fill(128),1),pose);
@@ -36,15 +41,15 @@ test('body landmarks reject occlusion; anatomical sides only swap when requested
  world[15].visibility=.2;assert.equal(bodySignals(world,[]),null);
 });
 test('motion advances in small steps, preserves other joints and stops queued targets',async()=>{
- const r=new Robot(),m=new MotionController(r);await m.sync();const c=defaultCalibration();c[0].enabled=true;
+ const r=new Robot(),m=new MotionController(r);await m.sync();const c=defaultCalibration().map(v=>({...v,enabled:false}));c[0].enabled=true;
  m.setTarget([150,...Array(7).fill(0)],c);await sleep(10);
  assert.deepEqual(r.writes[0],[132,...Array(7).fill(128)]);
  await r.stop();await sleep(120);assert.equal(r.writes.length,1);
 });
-test('motion refuses stale/unread pose and out-of-limit baseline',async()=>{
- const r=new Robot(),m=new MotionController(r),c=defaultCalibration();c[0].enabled=true;
+test('motion refuses stale/unread pose and an invalid encoded baseline',async()=>{
+ const r=new Robot(),m=new MotionController(r),c=defaultCalibration().map(v=>({...v,enabled:false}));c[0].enabled=true;
  assert.throws(()=>m.setTarget(Array(8).fill(140),c),/Read/);
- c[0].max=168;r.pose[0]=230;await m.sync();assert.throws(()=>m.setTarget(Array(8).fill(140),c),/outside/);
+ c[0].max=168;r.pose[0]=0;await m.sync();assert.throws(()=>m.setTarget(Array(8).fill(140),c),/encoding/);
 });
 test('sequence import validates times and never accepts a wheel command',()=>{
  assert.throws(()=>validateSequence({version:1,frames:[{time:0,pose:Array(8).fill(128)},{time:0,pose:Array(8).fill(128)}]}),/increase/);
@@ -71,7 +76,7 @@ test('aborting a joint test never sends a delayed restore after stop',async()=>{
 test('physically verified head mapping sends turn to slot 6 and sideways tilt to slot 7',()=>{
  const c=defaultCalibration().map(v=>({...v,enabled:true}));
  const pose=calibratedPose({headTurn:1,headTilt:-1},c,Array(8).fill(128),1);
- assert.deepEqual(pose,[128,128,128,128,128,128,232,24]);
+ assert.deepEqual(pose,[128,128,128,128,128,128,228,71]);
 });
 
 test('visible diagnostic sweep cancels promptly without a late restore',async()=>{
@@ -81,9 +86,9 @@ test('visible diagnostic sweep cancels promptly without a late restore',async()=
  assert(r.writes.every(p=>p.slice(1).every(v=>v===128)&&Math.abs(p[0]-128)<=24));
 });
 
-test('concurrent manual targets preserve each other without enabling mirror joints',async()=>{
+test('concurrent manual targets preserve each other without mutating calibration switches',async()=>{
  const r=new Robot(),m=new MotionController(r),c=defaultCalibration();await m.sync();
  m.setJointTarget(0,148,c);m.setJointTarget(1,144,c);
  assert.deepEqual(m.target,[148,144,128,128,128,128,128,128]);
- await sleep(650);assert.deepEqual(r.pose,m.target);assert(c.every(j=>!j.enabled));m.cancel();
+ await sleep(650);assert.deepEqual(r.pose,m.target);assert(c.every(j=>j.enabled));m.cancel();
 });

@@ -9,12 +9,12 @@ try {
  const errors=[],external=[];
  page.on('pageerror',e=>errors.push(e.message));
  page.on('request',r=>{if(!r.url().startsWith(new URL(base).origin)&&!r.url().startsWith('data:'))external.push(r.url());});
- await page.goto(base);await page.getByRole('button',{name:'Try it without a robot'}).click();
+ await page.goto(base);const realCalibration=await page.evaluate(()=>localStorage.getItem('meccanoid.calibration'));await page.getByRole('button',{name:'Try it without a robot'}).click();
  await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('Practice robot'));
  await page.evaluate(()=>document.fonts.ready);
  assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--paper').trim()),'#F4EFE7','CNS tokens must load from the published artifact');
  assert(await page.evaluate(()=>document.fonts.check('900 64px Fraunces')),'Local display font must be available');
- assert.deepEqual(await page.locator('.masthead .brand').evaluate(el=>({ink:getComputedStyle(el.querySelector('.brand-me')).color,dot:getComputedStyle(el.querySelector('.brand-dot')).backgroundColor,italic:getComputedStyle(el.querySelector('.brand-me')).fontStyle,flamingo:el.querySelector('.brand-flamingo').textContent})),{ink:'rgb(20, 17, 15)',dot:'rgb(229, 25, 127)',italic:'italic',flamingo:'🦩'});
+ assert.deepEqual(await page.locator('.masthead .brand').evaluate(el=>({ink:getComputedStyle(el.querySelector('.brand-me')).color,dot:getComputedStyle(el.querySelector('.brand-dot')).backgroundColor,italic:getComputedStyle(el.querySelector('.brand-me')).fontStyle,flamingos:document.querySelectorAll('.brand-flamingo').length})),{ink:'rgb(20, 17, 15)',dot:'rgb(229, 25, 127)',italic:'italic',flamingos:0});
  assert(await page.locator('#practiceBanner').isVisible());
  await page.getByRole('button',{name:'Red eyes',exact:true}).click();
  assert.equal(await page.getByRole('button',{name:'Red eyes',exact:true}).getAttribute('aria-pressed'),'true');
@@ -41,7 +41,7 @@ try {
  await page.screenshot({path:'docs/screenshots/copy-me.png',fullPage:true});
  await page.locator('[data-view=move]').click();await page.locator('#syncPose').click();
  await page.screenshot({path:'docs/screenshots/arms-and-head.png',fullPage:true});
- assert.equal(await page.evaluate(()=>localStorage.getItem('meccanoid.calibration')),null,'Practice must not change real robot calibration');
+ assert.equal(await page.evaluate(()=>localStorage.getItem('meccanoid.calibration')),realCalibration,'Practice must not change real robot calibration');
  assert.deepEqual(errors,[]);assert.deepEqual(external,[],'Fonts, camera and app assets must stay on this origin');
  console.log('UI passed: practice, instant lights, jokes, accessibility, all five views at five widths, screenshots, no external requests.');
 }finally{await browser.close();}

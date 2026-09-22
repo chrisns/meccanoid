@@ -16,8 +16,8 @@ try {
  await page.waitForFunction(()=>document.querySelector('#rangeCaptureState').textContent.includes('60–200'));
  await page.locator('#finishRangeCapture').click();
  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('meccanoid.calibration')));
- assert.deepEqual([saved[0].min,saved[0].centre,saved[0].max],[60,128,200]);
- assert.deepEqual([saved[1].min,saved[1].max],[24,232]);assert.equal(await page.locator('#arm').isChecked(),false);
+ assert.deepEqual([saved[0].min,saved[0].centre,saved[0].max],[64,128,196]);
+ assert.deepEqual([saved[1].min,saved[1].max],[28,228]);assert.equal(await page.locator('#arm').isChecked(),false);
  assert.equal(await page.evaluate(()=>window.robotWrites.some(p=>p[0]===8)),false,'Hand capture must never send a servo pose');
  assert(await page.evaluate(()=>window.robotWrites.some(p=>p[0]===11&&p[1]===4)));
  await start();await page.locator('#globalStop').click();assert(await page.locator('#finishRangeCapture').isDisabled());

@@ -10,8 +10,8 @@ export const editing=target=>Boolean(target?.closest?.('textarea,select,input:no
 /** Bounded repeat loop, independent of OS key-repeat. Every async start rechecks its lease. */
 export class KeyboardControls {
   held=new Set();epoch=0;busy=false;timer;stopping=Promise.resolve();
-  constructor({target=window,document:doc=document,enabled,drive,nudge,stop,halt,report,onchange=()=>{}}) {
-    Object.assign(this,{enabled,drive,nudge,stop,halt,report,onchange});
+  constructor({target=window,document:doc=document,enabled,drive,nudge,stop,release=stop,halt,report,onchange=()=>{}}) {
+    Object.assign(this,{enabled,drive,nudge,release,stop,halt,report,onchange});
     target.addEventListener('keydown',e=>{
       const key=keyOf(e);
       if(key==='Escape'||(key===' '&&!editing(e.target)&&enabled())){
@@ -24,14 +24,15 @@ export class KeyboardControls {
     target.addEventListener('keyup',e=>{
       const key=keyOf(e);if(!this.held.delete(key))return;e.preventDefault();
       this.epoch++;clearTimeout(this.timer);this.onchange(this.held);
-      this.stopping=Promise.resolve(stop()).catch(report);this.stopping.then(()=>this.tick());
+      const finish=key in DRIVE_KEYS?stop:release;
+      this.stopping=Promise.resolve(finish(key)).catch(report);this.stopping.then(()=>this.tick());
     });
-    const release=()=>{if(this.held.size){this.clear();this.stopping=Promise.resolve(stop()).catch(report);}};
-    target.addEventListener('blur',release);
-    target.addEventListener('hashchange',release);
-    target.addEventListener('pointerdown',release);
-    doc.addEventListener('visibilitychange',()=>{if(doc.hidden)release();});
-    doc.addEventListener('focusin',e=>{if(editing(e.target))release();});
+    const releaseAll=()=>{if(this.held.size){this.clear();this.stopping=Promise.resolve(stop()).catch(report);}};
+    target.addEventListener('blur',releaseAll);
+    target.addEventListener('hashchange',releaseAll);
+    target.addEventListener('pointerdown',releaseAll);
+    doc.addEventListener('visibilitychange',()=>{if(doc.hidden)releaseAll();});
+    doc.addEventListener('focusin',e=>{if(editing(e.target))releaseAll();});
   }
   clear() {this.held.clear();this.epoch++;clearTimeout(this.timer);this.onchange(this.held);}
   async tick() {
@@ -43,7 +44,7 @@ export class KeyboardControls {
       await this.stopping;if(!valid())return;
       const arrows=[...this.held].filter(key=>key in DRIVE_KEYS);
       if(arrows.length){
-        delay=350;
+        delay=250;
         if(arrows.length===1)await this.drive(DRIVE_KEYS[arrows[0]],valid);
         else await this.stop();
       } else {
