@@ -47,6 +47,7 @@ try {
           if (data?.type === 'result') window.poseVideoResults.push({
             pose: Boolean(data.world),
             visible: [11,12,13,14,15,16,23,24].map(i => Number((data.world?.[i]?.visibility ?? 0).toFixed(2))),
+            ...(window.capturePoseDiagnostics ? { world: data.world, landmarks: data.landmarks } : {}),
           });
         });
       }
@@ -54,6 +55,7 @@ try {
   });
   await page.addInitScript(fakeRobot);
   await page.goto(process.env.APP_URL || 'http://localhost:8080');
+  if (process.env.CAMERA_POSE_DIAGNOSTICS) await page.evaluate(() => { window.capturePoseDiagnostics = true; });
   await page.evaluate(neutral => window.setRobotPose(neutral), MEASURED_NEUTRAL);
   await page.locator('#connect').click();
   await page.locator('[data-view=copy]').click();
@@ -73,6 +75,15 @@ try {
   const tracked = samples.filter(s => s.state.includes('Body tracked'));
   const poses = await page.evaluate(() => window.robotWrites.filter(p => p[0] === 8).map(p => p.slice(1, 9)));
   const modelResults = await page.evaluate(() => window.poseVideoResults);
+  if (process.env.CAMERA_POSE_DIAGNOSTICS) {
+    const diagnosis = await page.evaluate(async () => {
+      const {bodySignals,mirrorSignals} = await import('./src/tracking-math.js');
+      const frame=window.poseVideoResults.findLast(r=>r.pose);
+      return {raw:bodySignals(frame?.world,frame?.landmarks),mirrored:mirrorSignals(bodySignals(frame?.world,frame?.landmarks)),pose:document.querySelector('#robotPreview').dataset.pose,image:[11,12,13,14,15,16].map(i=>[i,frame?.landmarks?.[i]?.x,frame?.landmarks?.[i]?.y,frame?.landmarks?.[i]?.visibility]),world:[11,12,13,14,15,16].map(i=>[i,frame?.world?.[i]?.x,frame?.world?.[i]?.y,frame?.world?.[i]?.z])};
+    });
+    console.log('Pose diagnosis:',JSON.stringify(diagnosis));
+    await page.locator('#robotPreview').screenshot({path:process.env.CAMERA_POSE_DIAGNOSTICS});
+  }
   console.log(JSON.stringify({ trackedFrames: tracked.length, poseWrites: poses.length, states: [...new Set(samples.map(s => s.state))], modelFrames: modelResults.length, posesFound: modelResults.filter(r => r.pose).length, firstVisibilities: modelResults.find(r => r.pose)?.visible, meterPeaks: MEASURED_NEUTRAL.map((_, i) => Math.max(...samples.map(s => Math.abs(s.meters[i])))), firstPose: poses[0], lastPose: poses.at(-1), errors }));
   assert.deepEqual(errors, []);
   assert(tracked.length >= 4, 'recorded human video must produce repeated body tracking');

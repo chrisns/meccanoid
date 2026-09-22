@@ -45,6 +45,32 @@ test('body landmarks preserve visible joints through occlusion; anatomical sides
  world[11].visibility=.2;world[12].visibility=.2;
  assert(Number.isFinite(bodySignals(world,image).headTurn),'head keeps tracking without shoulders');
 });
+test('camera ignores confident arm landmarks guessed beyond the frame',()=>{
+ const world=Array.from({length:33},()=>({x:0,y:0,z:0,visibility:1}));
+ const image=Array.from({length:33},()=>({x:.5,y:.5,z:0,visibility:1}));
+ world[11]={x:-1,y:0,z:0,visibility:1};world[12]={x:1,y:0,z:0,visibility:1};
+ world[13]={x:-1,y:1,z:0,visibility:1};world[14]={x:1,y:1,z:0,visibility:1};
+ world[15]={x:-1,y:2,z:0,visibility:1};world[16]={x:1,y:2,z:0,visibility:1};
+ world[23]={x:-1,y:2,z:0,visibility:1};world[24]={x:1,y:2,z:0,visibility:1};
+ image[13].y=1.12;
+ const signals=bodySignals(world,image);
+ assert.equal(signals.leftLift,undefined);
+ assert.equal(signals.leftSwing,undefined);
+ assert.equal(signals.leftElbow,undefined);
+ assert.equal(signals.rightElbow,0);
+});
+test('camera preserves a clear on-screen elbow bend when depth estimation understates it',()=>{
+ const world=Array.from({length:33},()=>({x:0,y:0,z:0,visibility:1}));
+ const image=Array.from({length:33},()=>({x:.5,y:.5,z:0,visibility:1}));
+ world[11]={x:-1,y:0,z:0,visibility:1};world[12]={x:1,y:0,z:0,visibility:1};
+ world[13]={x:-1,y:1,z:0,visibility:1};world[14]={x:1,y:1,z:0,visibility:1};
+ world[15]={x:-1,y:2,z:0,visibility:1};world[16]={x:1,y:2,z:0,visibility:1};
+ world[23]={x:-1,y:2,z:0,visibility:1};world[24]={x:1,y:2,z:0,visibility:1};
+ image[12]={x:.333,y:.806,z:0,visibility:1};
+ image[14]={x:.046,y:.962,z:0,visibility:1};
+ image[16]={x:.095,y:.566,z:0,visibility:1};
+ assert(bodySignals(world,image).rightElbow>1.3);
+});
 test('motion advances in small steps, preserves other joints and stops queued targets',async()=>{
  const r=new Robot(),m=new MotionController(r);await m.sync();const c=defaultCalibration().map(v=>({...v,enabled:false}));c[0].enabled=true;
  m.setTarget([150,...Array(7).fill(0)],c);await sleep(10);

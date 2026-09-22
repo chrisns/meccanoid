@@ -70,8 +70,8 @@ export class RobotPreview {
       const hand=group(elbow,0,-.67,0);box(hand,.20,.15,.065,materials.metal);
       for(let f=0;f<3;f++){const finger=box(hand,.045,.17,.055,materials.metal,-.068+f*.068,-.12,.03);finger.rotation.x=-.3;}
       const thumb=box(hand,.12,.045,.055,materials.metal,side*.14,-.015,.03);thumb.rotation.z=side*.3;
-      if(side===-1){this.joints[0]={group:elbow,axis:'x',scale:-2.2};this.joints[1]={group:lift,axis:'z',scale:2.9};this.joints[2]={group:swing,axis:'x',scale:-2.6};}
-      else{this.joints[3]={group:swing,axis:'x',scale:2.6};this.joints[4]={group:lift,axis:'z',scale:2.9};this.joints[5]={group:elbow,axis:'x',scale:-2.2};}
+      if(side===-1){this.joints[0]={group:elbow,axis:'z',scale:-Math.PI};this.joints[1]={group:lift,axis:'z',scale:2.9};this.joints[2]={group:swing,axis:'x',scale:-2.6};}
+      else{this.joints[3]={group:swing,axis:'x',scale:2.6};this.joints[4]={group:lift,axis:'z',scale:2.9};this.joints[5]={group:elbow,axis:'z',scale:-Math.PI};}
     }
     rail(this.model,.31,.09,materials.metal,-.07,2.55);rail(this.model,.31,.09,materials.metal,.07,2.55);
     const turn=group(this.model,0,2.69,0),tilt=group(turn);box(tilt,.20,.12,.18,materials.metal);
