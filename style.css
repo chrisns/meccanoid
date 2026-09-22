@@ -34,4 +34,5 @@ button.held-key{background:var(--pink);color:var(--ink);outline:2px solid var(--
 @media(max-width:1050px){.workspace{grid-template-columns:minmax(0,1fr) 250px;gap:16px}.robot-preview{padding:12px}#robotPreview{height:360px}.workspace .joint-grid{grid-template-columns:1fr}.workspace .play-grid{grid-template-columns:1fr}}
 @media(max-width:760px){.workspace{display:flex;flex-direction:column}.activities{width:100%}.robot-preview{position:relative;top:auto;width:100%;order:-1;display:grid;grid-template-columns:1fr 1fr;gap:0 12px}.robot-preview #robotPreview{grid-column:2;grid-row:1/6;height:260px}.robot-preview h2{font-size:25px}.robot-preview p{font-size:13px}.robot-preview button{align-self:start}.workspace .play-grid{grid-template-columns:1fr}}
 .robot-preview{min-width:0}.robot-preview>*{min-width:0}#robotPreview{overflow:hidden}
+.copy-drive{margin:var(--s-5) 0}.copy-drive legend{font-weight:var(--w-bold)}.copy-drive .toolbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.copy-drive button{min-width:0;width:100%}
 @media(max-width:760px){.robot-preview{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}

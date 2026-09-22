@@ -299,6 +299,7 @@ export function setupStudio({robot,log,run,refresh,preview}) {
     const available=robot.connected&&robot.armed&&!diagnosticMode&&!teaching;
     $('startRangeCapture').disabled=!robot.connected||diagnosticMode||teaching;$('finishRangeCapture').disabled=!capturing;$('cancelRangeCapture').disabled=!teaching;
     $('arm').disabled=!robot.connected||teaching;
+    $('copyDrive').disabled=!available;
     $('servoColour').disabled=teaching;document.querySelectorAll('#chest input').forEach(input=>input.disabled=teaching);
     calRows.forEach(row=>Object.values(row).forEach(input=>input.disabled=teaching));
     for(const id of ['resetLimits','importCalibration'])$(id).disabled=teaching;

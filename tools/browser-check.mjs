@@ -50,6 +50,11 @@ try {
  await page.keyboard.down('ArrowUp');await page.waitForTimeout(300);await page.keyboard.up('ArrowUp');
  assert(await page.evaluate(count=>window.robotWrites.filter(p=>p[0]===25&&p[1]===13).length>count,cameraDriveWrites),'drive key moves during camera mode');
  await page.waitForFunction(count=>window.robotWrites.filter(p=>p[0]===25&&p[1]===8).length>count,cameraStopWrites);
+ const copyForward=page.locator('#copyDrive [data-drive=forward]');assert.equal(await copyForward.isEnabled(),true);
+ const cameraButtonDrives=await page.evaluate(()=>window.robotWrites.filter(p=>p[0]===25&&p[1]===13).length);
+ await copyForward.hover();await page.mouse.down();await page.waitForTimeout(300);await page.mouse.up();
+ await page.waitForFunction(count=>window.robotWrites.filter(p=>p[0]===25&&p[1]===13).length>count,cameraButtonDrives);
+ assert.equal(await page.locator('#cameraStop').isEnabled(),true,'direction button leaves camera on');
  assert.equal(await page.locator('#cameraStop').isEnabled(),true,'joint keyboard override keeps camera running');
  await page.locator('#cameraStop').click();assert.equal(await page.locator('#arm').isChecked(),false);assert.equal(await page.locator('video').evaluate(v=>v.srcObject),null);
  await page.route('**/tracker-worker.js',route=>route.fulfill({contentType:'text/javascript',body:'self.onmessage=()=>{};'}));
