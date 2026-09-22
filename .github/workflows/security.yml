@@ -1,15 +1,23 @@
-name: "Security Scanning"
+name: Security Scanning
 on:
   push:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+permissions:
+  contents: read
 jobs:
-  scan:
-    name: Security Scan
-    uses: chrisns/.github/.github/workflows/security-scan.yml@main
+  codeql:
+    name: CodeQL · JavaScript
+    if: github.event.repository.visibility == 'public'
+    runs-on: ubuntu-latest
     permissions:
-      security-events: write
-      statuses: write
       contents: read
       actions: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: github/codeql-action/init@4e828ff8d448a8a6e532957b1811f387a63867e8 # v3.30.0
+        with:
+          languages: javascript-typescript
+      - uses: github/codeql-action/analyze@4e828ff8d448a8a6e532957b1811f387a63867e8 # v3.30.0
