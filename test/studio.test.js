@@ -29,7 +29,7 @@ test('mirroring changes only explicitly verified joints and respects asymmetrica
  assert.deepEqual(pose,[100,128,128,128,128,128,128,128]);
  assert.deepEqual(calibratedPose({rightElbow:100},c,Array(8).fill(128),1),pose);
 });
-test('body landmarks reject occlusion; anatomical sides only swap when requested',()=>{
+test('body landmarks preserve visible joints through occlusion; anatomical sides swap only when requested',()=>{
  const world=Array.from({length:33},()=>({x:0,y:0,z:0,visibility:1}));
  world[11]={x:-1,y:0,z:0,visibility:1};world[12]={x:1,y:0,z:0,visibility:1};
  world[13]={x:-1,y:1,z:0,visibility:1};world[14]={x:1,y:1,z:0,visibility:1};
@@ -38,7 +38,12 @@ test('body landmarks reject occlusion; anatomical sides only swap when requested
  const s=bodySignals(world,[]);assert.equal(s.leftElbow,0);assert.equal(s.rightElbow,1);
  assert.equal(mirrorSignals(s).leftElbow,1);assert.equal(mirrorSignals(s,false).leftElbow,0);
  assert.deepEqual(relativeSignals(s,s),Object.fromEntries(Object.keys(s).map(k=>[k,0])));
- world[15].visibility=.2;assert.equal(bodySignals(world,[]),null);
+ world[15].visibility=.2;assert.equal(bodySignals(world,[]).leftElbow,undefined);assert.equal(bodySignals(world,[]).rightElbow,1);
+ world[23].visibility=.2;world[24].visibility=.2;world[0]={x:0,y:-1,z:0,visibility:1};
+ assert.equal(bodySignals(world,[]).rightElbow,1,'visible arm still works when other wrist and hips are out of frame');
+ const image=[];image[0]={x:.55,y:.18,z:0,visibility:1};image[7]={x:.42,y:.2,z:0,visibility:1};image[8]={x:.62,y:.2,z:0,visibility:1};
+ world[11].visibility=.2;world[12].visibility=.2;
+ assert(Number.isFinite(bodySignals(world,image).headTurn),'head keeps tracking without shoulders');
 });
 test('motion advances in small steps, preserves other joints and stops queued targets',async()=>{
  const r=new Robot(),m=new MotionController(r);await m.sync();const c=defaultCalibration().map(v=>({...v,enabled:false}));c[0].enabled=true;

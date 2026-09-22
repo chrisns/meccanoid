@@ -12,7 +12,8 @@
     "test:controls": "node tools/live-controls-check.mjs drag && node tools/live-controls-check.mjs ranges && node tools/live-controls-check.mjs lights && node tools/range-capture-check.mjs",
     "build": "node tools/build.mjs",
     "test:ui": "node tools/ui-check.mjs",
-    "test:preview": "node tools/preview-check.mjs"
+    "test:preview": "node tools/preview-check.mjs",
+    "test:camera": "node tools/camera-video-check.mjs"
   },
   "engines": {
     "node": ">=22"

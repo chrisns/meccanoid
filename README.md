@@ -65,6 +65,7 @@ npx playwright install chromium
 CI=true npm run test:controls
 CI=true npm run test:browser
 CI=true npm run test:preview # keyboard, stop behaviour and 3D rendering
+CI=true npm run test:camera  # official human video, cropped to a close webcam view; requires FFmpeg
 CI=true npm run test:ui   # accessibility, responsive layouts, practice, screenshots
 ```
 
@@ -72,7 +73,7 @@ Keep the local server running during browser tests. Without `CI=true`, tests use
 
 ## CI and publishing
 
-[GitHub Actions](.github/workflows/pages.yml) scans for secrets, installs locked dependencies, runs the unit and browser suites, checks accessibility and five screen widths, and uploads screenshots. Only a successful `main` build deploys its tested `dist/` artifact to GitHub Pages. Pull requests run checks without publishing. Actions are pinned to commit hashes; deployment uses GitHub's short-lived token, with no personal deployment secrets.
+[GitHub Actions](.github/workflows/pages.yml) scans for secrets, installs locked dependencies, replays an official human movement video through the camera model, runs the unit and browser suites, checks accessibility and five screen widths, and uploads screenshots. Only a successful `main` build deploys its tested `dist/` artifact to GitHub Pages. Pull requests run checks without publishing. Actions are pinned to commit hashes; deployment uses GitHub's short-lived token, with no personal deployment secrets.
 
 The public repo contains source, tests, documentation, screenshots, and the camera model. It excludes local session logs, environment files, dependency directories, and reverse-engineered app binaries. See [third-party notices](THIRD_PARTY.md) and [MIT licence](LICENSE).
 

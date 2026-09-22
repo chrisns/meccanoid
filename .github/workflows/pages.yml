@@ -35,10 +35,11 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - name: Serve the built Pages artifact
         run: |
           node tools/server.js > /tmp/meccanoid-server.log 2>&1 &
-          for attempt in {1..30}; do
+          for _ in {1..30}; do
             if curl --fail --silent "$APP_URL" > /dev/null; then exit 0; fi
             sleep 1
           done
@@ -46,6 +47,7 @@ jobs:
           exit 1
       - run: npm run test:controls
       - run: npm run test:browser
+      - run: npm run test:camera
       - run: npm run test:preview
       - run: npm run test:ui
       - name: Save browser screenshots
