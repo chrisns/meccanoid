@@ -73,6 +73,16 @@ test('camera preserves a clear on-screen elbow bend when depth estimation unders
  assert.equal(bodySignals(world,image).rightElbow,0);
  assert(previewBodySignals(world,image).rightElbow>1.3);
 });
+test('camera expands compressed overhead lift while keeping horizontal at one',()=>{
+ const world=Array.from({length:33},()=>({x:0,y:0,z:0,visibility:1}));
+ world[11]={x:-1,y:0,z:0,visibility:1};world[12]={x:1,y:0,z:0,visibility:1};
+ world[23]={x:-1,y:2,z:0,visibility:1};world[24]={x:1,y:2,z:0,visibility:1};
+ world[13]={x:-2,y:0,z:0,visibility:1};world[14]={x:2,y:0,z:0,visibility:1};
+ assert.equal(bodySignals(world,[]).rightLift,1);
+ const angle=1.57*Math.PI/2;
+ world[14]={x:1+Math.sin(angle),y:Math.cos(angle),z:0,visibility:1};
+ assert(bodySignals(world,[]).rightLift>1.99,'a camera-compressed overhead arm must reach full travel at 50% scale');
+});
 test('motion advances in small steps, preserves other joints and stops queued targets',async()=>{
  const r=new Robot(),m=new MotionController(r);await m.sync();const c=defaultCalibration().map(v=>({...v,enabled:false}));c[0].enabled=true;
  m.setTarget([150,...Array(7).fill(0)],c);await sleep(10);

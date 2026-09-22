@@ -45,7 +45,7 @@ Screenshots show the app's **practice mode**, not a connected physical robot.
 
 ## Privacy and design
 
-No accounts, adverts, analytics, or camera uploads. Video inference runs in a browser worker; fonts, model, and runtime load from this site. Hosting still involves normal web requests to GitHub Pages. Poses/calibration stay in local browser storage unless you export them. Custom speech and audio play from the **computer**, not the robot's speaker.
+No accounts, adverts, analytics, camera uploads, computer speech, or audio-file playback. Video inference runs in a browser worker; fonts, model, and runtime load from this site. Hosting still involves normal web requests to GitHub Pages. Poses/calibration stay in local browser storage unless you export them. Robot chat uses only the firmware's built-in voice actions.
 
 Uses the actual [CNS design system](https://github.com/chrisns/design) behind [blog.cns.me](https://blog.cns.me), [talks.cns.me](https://talks.cns.me), and [govbuy.run.cns.me](https://govbuy.run.cns.me): Fraunces, Hanken Grotesk, JetBrains Mono, cream paper, warm ink, and hot pink. Large labelled controls, keyboard focus, reduced-motion support, and responsive layouts make it easier to use with fingers or a trackpad.
 

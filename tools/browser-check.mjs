@@ -9,11 +9,12 @@ try {
  await page.addInitScript(fakeRobot);
  await page.goto(process.env.APP_URL||'http://localhost:8080');
  assert.equal(await page.locator('#arm').count(),0,'movement must not require a readiness checkbox');
+ assert.equal(await page.locator('#neutralPose').count(),0,'measured robot neutral must not be replaceable from the main controls');
+ assert.equal(await page.locator('#speechText,#voiceSelect,#audioFile,#audioPlayer').count(),0,'computer speech and audio controls must not be present');
  assert.equal(await page.locator('#jointControls .joint-card').count(),8);
  assert.equal(await page.locator('#mirrorStart,#mirrorStop,#humanNeutral').count(),0,'camera mode has no extra start or apply buttons');
  await page.locator('#connect').click();await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('connected:'));
  await page.locator('[data-view=move]').click();await page.locator('#syncPose').click();await page.waitForFunction(()=>document.querySelector('#poseState').textContent.startsWith('Current pose'));
- await page.locator('#neutralPose').click();
  await page.locator('[data-view=play]').click();await page.getByRole('button',{name:'Forward',exact:true}).click();
  await page.waitForFunction(()=>window.robotWrites.some(p=>p[0]===25&&p[1]===13));
  await page.waitForFunction(()=>window.robotWrites.some(p=>p[0]===25&&p[1]===8));
@@ -30,6 +31,8 @@ try {
  await page.waitForFunction(()=>document.querySelector('#presetSelect').options[0]?.textContent.includes('INTRODUCE'));
  await page.locator('[data-view=play]').click();await page.locator('#quickJoke').click();
  await page.waitForFunction(()=>window.robotWrites.some(p=>p[0]===25&&p[1]===3&&p[2]===0));
+ await page.locator('#quickTime').click();
+ await page.waitForFunction(()=>window.robotWrites.some(p=>p[0]===27)&&window.robotWrites.some(p=>p[0]===25&&p[1]===18));
  await page.locator('[data-view=workshop]').click();await page.locator('#runTest').click();await page.waitForFunction(()=>document.querySelector('#testEvidence').textContent.includes('Record'));
  await page.getByRole('button',{name:'Working ✓',exact:true}).click();assert.match(await page.locator('#testTitle').textContent(),/Eyes/);
  await page.locator('[data-view=workshop]').click();await page.locator('#runTest').click();await page.waitForFunction(()=>window.robotWrites.some(p=>p[0]===17));

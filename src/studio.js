@@ -32,7 +32,7 @@ export function setupStudio({robot,log,run,refresh,preview}) {
   let presetBank=new Map();
   let signals=null,smoothed=null,mirroring=false,cameraStalled=false,recoveringPose=false,lastFrame=0,manualOverrideUntil=0;
   let sequence=null,recording=false,recordStart=0,recordTimer,playTimer,playing=false,playEpoch=0;
-  let cameraLoading=false,cameraEpoch=0,diagnosticMode=false,audioURL;
+  let cameraLoading=false,cameraEpoch=0,diagnosticMode=false;
   let capturing=false,captureStarting=false,captureEpoch=0,captureTimer,rangeSamples=null;
   const cards=[],calRows=[];
   const store=(key,value)=>localStorage.setItem(storageKey(key),JSON.stringify(value));
@@ -193,12 +193,6 @@ export function setupStudio({robot,log,run,refresh,preview}) {
   action('cancelRangeCapture',()=>endCapture('Capture discarded; previous limits retained.'));
   action('halt',halt);
   action('syncPose',async()=>{assertFree();cancelProducers();await motion.sync();renderPose();});
-  action('neutralPose',async()=>{
-    assertFree();assertPose();cancelProducers();
-    if(robot.connected)await robot.stop();
-    calibration=calibration.map(c=>{const value=motion.current[c.slot];if(value<24||value>232)throw new Error(`Slot ${c.slot} is outside 24–232; check the wiring test first`);if(value<c.min||value>c.max)throw new Error(`Slot ${c.slot}: neutral is outside your saved limits; update its limits first`);return {...c,centre:value};});
-    store('meccanoid.calibration',calibration);renderCalibration();$('calibrationStatus').textContent='Neutral captured. Your travel limits are unchanged.';
-  });
   action('resetLimits',async()=>{assertFree();cancelProducers();if(robot.connected)await robot.stop();calibration=defaultCalibration();store('meccanoid.calibration',calibration);renderCalibration();$('calibrationStatus').textContent='Measured G15KS centres and safe limits restored.';});
   action('exportCalibration',()=>download('meccanoid-calibration.json',{version:1,joints:calibration}));
   $('importCalibration').onchange=()=>run(async()=>{assertFree();const data=await loadFile($('importCalibration'));if(!data)return;if(data.version!==1)throw new Error('Unsupported calibration version');const next=validateCalibration(data.joints);cancelProducers();if(robot.connected)await robot.stop();calibration=next;store('meccanoid.calibration',calibration);renderCalibration();state();});
@@ -269,16 +263,19 @@ export function setupStudio({robot,log,run,refresh,preview}) {
   for(const [id,level] of [['volumeQuiet',1],['volumeMedium',2],['volumeLoud',3]])action(id,async()=>{await playRobot(()=>robot.setVolume(level));$('audioState').textContent=`Volume ${level} sent · listen for its preview`;});
   let volumeTimer;
   $('volumeCustom').oninput=()=>{clearTimeout(volumeTimer);volumeTimer=setTimeout(()=>run(async()=>{if(!robot.connected||$('volumeCustom').disabled||!$('volumeCustom').value||!$('volumeCustom').checkValidity())return;const value=Number($('volumeCustom').value);await playRobot(()=>robot.setExperimentalVolume(value));$('audioState').textContent=`Experimental volume ${value} sent · effect needs listening confirmation`; }),200);};
-  action('quickJoke',async()=>{await playRobot(()=>robot.playPreset(3));$('audioState').textContent='Joke requested on the robot';});
-  action('quickIntro',async()=>{await playRobot(()=>robot.playPreset(1));$('audioState').textContent='Introduction requested on the robot';});
+  const quickActions=[
+    ['quickJoke',3,'Joke requested on the robot'],
+    ['quickIntro',1,'Introduction requested on the robot'],
+    ['quickHighFive',2,'High five requested on the robot'],
+    ['quickSystemCheck',10,'System check requested on the robot'],
+    ['quickUserName',11,'User-name action requested on the robot'],
+    ['quickRobotName',12,'Robot-name action requested on the robot'],
+    ['quickHandshake',19,'Handshake requested on the robot'],
+  ];
+  for(const [id,preset,message] of quickActions)action(id,async()=>{await playRobot(()=>robot.playPreset(preset));$('audioState').textContent=message;});
+  action('quickTime',async()=>{await playRobot(async()=>{await robot.syncClock(new Date());await robot.playPreset(18);});$('audioState').textContent='Clock synced and time requested on the robot';});
   action('playPreset',()=>playRobot(()=>{const id=Number($('presetSelect').value);if(presetBank.has(id)&&!presetBank.get(id))throw new Error('This preset returned invalid metadata');return robot.playPreset(id,Number($('presetVariant').value));}));
   action('playLim',()=>playRobot(()=>{const slot=Number($('limSlot').value);if(!robot.status||slot>robot.status.limCount)throw new Error('Choose a slot reported by the robot');return robot.playLIM(slot);}));
-  const synth=window.speechSynthesis;
-  const voices=()=>{const previous=$('voiceSelect').value;$('voiceSelect').replaceChildren();for(const voice of (synth?.getVoices()??[]).filter(v=>v.localService))$('voiceSelect').append(new Option(`${voice.name} (${voice.lang})${voice.localService?' · local':''}`,voice.voiceURI));if(previous)$('voiceSelect').value=previous;};
-  voices();synth?.addEventListener('voiceschanged',voices);
-  action('speak',()=>{if(!synth)throw new Error('Speech synthesis unavailable');const text=$('speechText').value.trim();if(!text)throw new Error('Enter something to say');synth.cancel();const utterance=new SpeechSynthesisUtterance(text);utterance.voice=synth.getVoices().find(v=>v.localService&&v.voiceURI===$('voiceSelect').value)??null;if(!utterance.voice)throw new Error('No local speech voice is installed in this browser. Audio files still work.');synth.speak(utterance);});
-  action('silence',()=>{synth?.cancel();$('audioPlayer').pause();});
-  $('audioFile').onchange=()=>run(()=>{const file=$('audioFile').files[0];if(!file)return;if(file.size>50*1024*1024)throw new Error('Audio file must be smaller than 50 MB');$('audioPlayer').pause();if(audioURL)URL.revokeObjectURL(audioURL);audioURL=URL.createObjectURL(file);$('audioPlayer').src=audioURL;});
   function renderTest() {
     const step=diagnostics.step;$('testTitle').textContent=step?.title??'Check complete';$('testDescription').textContent=step?.description??'Export your report. Skipped or manual checks remain unverified.';
     $('testProgress').max=diagnosticSteps.length;$('testProgress').value=diagnostics.index;$('testCount').textContent=`${diagnostics.index} / ${diagnosticSteps.length}`;
@@ -295,7 +292,7 @@ export function setupStudio({robot,log,run,refresh,preview}) {
   action('exportReport',()=>download('meccanoid-system-test.json',diagnostics.report()));
   window.addEventListener('blur',()=>{if(capturing||captureStarting)endCapture('Capture stopped when window lost focus; previous limits retained.');if(cameraLoading)return;cameraEpoch++;tracker.stop();signals=null;cancelProducers();finishRecording();diagnostics.abort();diagnosticMode=false;state();});
   document.addEventListener('visibilitychange',()=>{if(document.hidden){cameraEpoch++;tracker.stop();signals=null;cancelProducers();}});
-  window.addEventListener('pagehide',()=>{cameraEpoch++;tracker.stop();synth?.cancel();$('audioPlayer').pause();});
+  window.addEventListener('pagehide',()=>{cameraEpoch++;tracker.stop();});
   function state() {
     const teaching=capturing||captureStarting;
     const available=robot.connected&&!diagnosticMode&&!teaching;
@@ -305,7 +302,7 @@ export function setupStudio({robot,log,run,refresh,preview}) {
     calRows.forEach(row=>Object.values(row).forEach(input=>input.disabled=teaching));
     for(const id of ['resetLimits','importCalibration'])$(id).disabled=teaching;
     cards.forEach((card,i)=>{card.slider.disabled=!available||!motion.current;card.buttons.forEach(b=>b.disabled=!available||!motion.current);});
-    $('syncPose').disabled=!robot.connected||diagnosticMode||teaching;$('neutralPose').disabled=!motion.current||diagnosticMode||teaching;
+    $('syncPose').disabled=!robot.connected||diagnosticMode||teaching;
     $('savePose').disabled=!motion.current;
     $('cameraStart').disabled=cameraLoading||tracker.running;$('cameraStop').disabled=!tracker.running;
     $('cameraStop').textContent=cameraLoading?'Cancel camera setup':'Camera off';
@@ -314,7 +311,7 @@ export function setupStudio({robot,log,run,refresh,preview}) {
     $('stopSequence').disabled=!playing;
     for(const id of ['volumeQuiet','volumeMedium','volumeLoud','volumeCustom'])$(id).disabled=!robot.connected||diagnosticMode||teaching;
     $('syncClock').disabled=!robot.connected;$('refreshBank').disabled=!robot.connected;$('playPreset').disabled=!available||!$('presetSelect').value;
-    $('quickJoke').disabled=!available;$('quickIntro').disabled=!available;
+    for(const [id] of quickActions)$(id).disabled=!available;$('quickTime').disabled=!available;
     $('visibleTests').disabled=diagnostics.running;
     $('playLim').disabled=!available||!robot.status?.limCount;
     $('runTest').disabled=teaching||diagnostics.running||!diagnostics.step||(!robot.connected&&diagnostics.step.kind!=='manual');

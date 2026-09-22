@@ -50,7 +50,7 @@ The robot reports its preset-bank and L.I.M. recording counts. **Read bank** ret
 
 Use **Sync robot clock to computer** before trying TELL TIME. It sends the original app’s local-time/date format; this addition is software-tested but still awaits hardware verification. Experimental volume is available separately: 99 was sent during exploration, but its effect was not confirmed and higher values are not known to mean louder. The **Variation** field sends the original preset subcommand byte; its meaning varies by routine, and repeated JOKE variation 1 produced different jokes.
 
-The original Android app plays custom recorded audio through the **phone's speaker**. We found no custom sound-upload, audio-streaming or text-to-speech command to the robot in the inspected app. This controller offers local computer speech synthesis and audio-file playback, clearly separate from robot presets. Computer speech requires an installed local voice. Preset 1 (INTRODUCE) physically produced “konnichiwa”; other effects are being catalogued in the hardware notes.
+The original Android app plays custom recorded audio through the **phone's speaker**. We found no custom sound-upload, audio-streaming or text-to-speech command to the robot in the inspected app, so the controller uses only the robot's built-in voice actions. Preset 1 (INTRODUCE) physically produced “konnichiwa”; JOKE and volume speech are also physically confirmed. The main Robot chat panel exposes the other named firmware actions for testing. TELL TIME first syncs the clock using the recovered original-app packet.
 
 ## Library
 

@@ -168,11 +168,17 @@
 <p class="eyebrow">03 / ROBOT CHAT</p>
 <h2>Got a good joke?</h2>
 <p class="small muted">Meet your very tall, very chatty friend. Ready for a robot joke?</p>
-<div class="toolbar">
+<div class="robot-actions">
 <button id="quickJoke">Tell a joke</button>
 <button id="quickIntro">Say hello</button>
+<button id="quickHighFive">High five</button>
+<button id="quickSystemCheck">System check</button>
+<button id="quickUserName">User name</button>
+<button id="quickRobotName">Robot name</button>
+<button id="quickTime">Tell the time</button>
+<button id="quickHandshake">Shake hands</button>
 </div>
-<p class="small muted">Your robot might wave its arms while it talks.</p>
+<p class="small muted">These are built into the robot. Some also move its arms.</p>
 <p class="small muted">Robot volume · plays a short preview</p>
 <div class="toolbar">
 <button id="volumeQuiet">Whisper</button>
@@ -180,24 +186,6 @@
 <button id="volumeLoud">Louder</button>
 </div>
 <p id="audioState" role="status" class="small muted">Your robot has something to say.</p>
-<details>
-<summary>Make your Chromebook talk</summary>
-<h3>Computer speakers</h3>
-<p class="small muted">These sounds come from your Chromebook, not the robot.</p>
-<label>Say something<textarea id="speechText" maxlength="1000" rows="2" placeholder="Hello, I’m Meccanoid!">
-</textarea>
-</label>
-<select id="voiceSelect" aria-label="Computer voice">
-</select>
-<div class="toolbar">
-<button id="speak">Speak on computer</button>
-<button id="silence">Stop speech/audio</button>
-</div>
-<label class="file-button">Choose audio file<input id="audioFile" type="file" accept="audio/*">
-</label>
-<audio id="audioPlayer" controls>
-</audio>
-</details>
 </section>
 </div>
 <div class="next-adventure">
@@ -220,7 +208,6 @@
 <p class="tbc"><strong>Movement ranges measured.</strong> Controls use the 19 September physical calibration with a four-unit margin inside each observed endpoint.</p>
 <div class="toolbar">
 <button id="syncPose">Read current pose</button>
-<button id="neutralPose">Use pose as neutral</button>
 <span id="poseState" role="status">No robot pose read</span>
 </div>
 <div id="jointControls" class="joint-grid">
@@ -257,8 +244,8 @@
 <div>
 <label>
 <input id="mirrorSides" type="checkbox" checked> Mirror left and right</label>
-<label>Movement scale <output id="gainValue">40%</output>
-<input id="mirrorGain" type="range" min="10" max="100" value="40">
+<label>Movement scale <output id="gainValue">50%</output>
+<input id="mirrorGain" type="range" min="10" max="100" value="50">
 </label>
 <p id="mirrorState" role="status">Turn the camera on to begin</p>
 <fieldset id="copyDrive" class="copy-drive" disabled>

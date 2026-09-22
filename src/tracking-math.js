@@ -9,6 +9,9 @@ const flatDelta=(a,b)=>({x:a.x-b.x,y:a.y-b.y,z:0});
 const visible=p=>p && [p.x,p.y,p.z].every(Number.isFinite) && (p.visibility ?? 0)>=0.65;
 const inFrame=p=>visible(p)&&p.x>=-.015&&p.x<=1.015&&p.y>=-.015&&p.y<=1.015;
 const tracked=(world,image,i)=>visible(world?.[i])&&(!image?.length||inFrame(image[i]));
+// Laptop-camera perspective compresses the upper part of a side-lift arc. Keep
+// down-to-horizontal linear, then expand overhead travel to the robot's range.
+const expandOverheadLift=value=>value>1?1+(value-1)*1.75:value;
 /** Landmarks use anatomical left/right. Mirroring the video CSS does not change their IDs. */
 export function bodySignals(world, image) {
   const signals={};
@@ -22,7 +25,7 @@ export function bodySignals(world, image) {
       if(!visible(world?.[e]))continue;
       const upper=unit(subtract(world[e],world[s]));
       if(!upper)continue;
-      signals[`${side}Lift`]=Math.atan2(dot(upper,right)*sign,dot(upper,down))/(Math.PI/2);
+      signals[`${side}Lift`]=expandOverheadLift(Math.atan2(dot(upper,right)*sign,dot(upper,down))/(Math.PI/2));
       signals[`${side}Swing`]=Math.atan2(dot(upper,forward),Math.max(0.05,dot(upper,down)))/(Math.PI/2);
       if(visible(world?.[w])){
         const lower=unit(subtract(world[w],world[e]));

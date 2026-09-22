@@ -20,6 +20,12 @@ export function setupShell({robot,studio,run,practice}) {
   if(practice)robot.addEventListener('tx',({detail:p})=>{
     if(p[0]===25){
       if(p[1]===3)$('practiceAction').textContent='Practice joke: Why did the robot go on holiday? It needed to recharge its batteries.';
+      else if(p[1]===2)$('practiceAction').textContent='Practice high five: hand up!';
+      else if(p[1]===10)$('practiceAction').textContent='Practice system check requested.';
+      else if(p[1]===11)$('practiceAction').textContent='Practice user-name action requested.';
+      else if(p[1]===12)$('practiceAction').textContent='Practice robot-name action requested.';
+      else if(p[1]===18)$('practiceAction').textContent='Practice robot tells the time.';
+      else if(p[1]===19)$('practiceAction').textContent='Practice handshake: pleased to meet you!';
       else if([13,14,15,16].includes(p[1]))$('practiceAction').textContent=`Practice move: ${ {13:'forwards',14:'backwards',15:'turn left',16:'turn right'}[p[1]] }.`;
       else if(p[1]===8)$('practiceAction').textContent='Practice robot stopped.';
       else if(p[1]===1)$('practiceAction').textContent='Practice: Hello, human! Ready to make something?';

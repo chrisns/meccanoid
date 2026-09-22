@@ -21,6 +21,7 @@ try {
  await page.getByRole('button',{name:'Green eyes',exact:true}).click();
  await page.locator('#quickJoke').click();
  assert.match(await page.locator('#practiceAction').textContent(),/Practice joke/);
+ assert.equal(await page.locator('#speechText,#voiceSelect,#audioFile,#audioPlayer').count(),0);
  const issues=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
  assert.deepEqual(issues.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)})),[]);
  await mkdir('docs/screenshots',{recursive:true});

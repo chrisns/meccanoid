@@ -12,8 +12,7 @@ try {
  } else {
   await page.locator('[data-view=move]').click();await page.locator('#syncPose').click();await page.waitForFunction(()=>document.querySelector('#poseState').textContent.startsWith('Current pose'));
   const slider=page.getByRole('slider',{name:'Right elbow',exact:true});
-  const before=await slider.evaluate(e=>[e.min,e.max]);await page.locator('#neutralPose').click();
-  if(process.argv[2]==='ranges') assert.deepEqual(await slider.evaluate(e=>[e.min,e.max]),before,'Capturing neutral must not silently narrow the configured travel');
+  if(process.argv[2]==='ranges') assert.deepEqual(await slider.evaluate(e=>[e.min,e.max]),['28','228'],'Measured safe travel must remain available');
   else {
    await slider.evaluate(el=>{el.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:1}));el.value='140';el.dispatchEvent(new Event('input',{bubbles:true}));});
    await page.waitForTimeout(50);
