@@ -81,6 +81,7 @@ export class Meccanoid extends EventTarget {
   #servoControl = false;
   #routineActive = false;
   #heldDirection = null;
+  #heldSentAt = 0;
   #teaching = false;
   positions = null;
   status = null;
@@ -106,6 +107,7 @@ export class Meccanoid extends EventTarget {
     this.#servoControl = false;
     this.#routineActive = false;
     this.#heldDirection = null;
+    this.#heldSentAt = 0;
     this.#teaching = false;
     this.positions = null;
     this.status = null;
@@ -240,8 +242,10 @@ export class Meccanoid extends EventTarget {
     protocol.integer(watchdogMilliseconds,250,1000,'watchdog');
     clearTimeout(this.#timer);
     this.#timer=setTimeout(()=>{this.stop().catch(e=>this.#emit('error',e.message));},watchdogMilliseconds);
-    if(this.#heldDirection===direction)return;
+    const now=Date.now();
+    if(this.#heldDirection===direction&&now-this.#heldSentAt<400)return;
     this.#heldDirection=direction;
+    this.#heldSentAt=now;
     try {await this.#send(protocol.preset(id));}
     catch(error){await this.stop().catch(()=>{});throw error;}
   }
@@ -249,6 +253,7 @@ export class Meccanoid extends EventTarget {
     clearTimeout(this.#timer);
     this.#timer = undefined;
     this.#heldDirection = null;
+    this.#heldSentAt = 0;
     this.#emit('stop', null);
     this.#epoch++; // Drop queued commands; zero speed follows the current GATT write.
     // Queue both synchronously so another producer cannot slip between them.

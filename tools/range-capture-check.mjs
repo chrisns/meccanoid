@@ -16,7 +16,7 @@ try {
  await page.waitForFunction(()=>document.querySelector('#rangeCaptureState').textContent.includes('60–200'));
  await page.locator('#finishRangeCapture').click();
  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('meccanoid.calibration')));
- assert.deepEqual([saved[0].min,saved[0].centre,saved[0].max],[64,128,196]);
+ assert.deepEqual([saved[0].min,saved[0].centre,saved[0].max],[64,134,196]);
  assert.deepEqual([saved[1].min,saved[1].max],[28,228]);assert(await page.locator('#syncPose').isEnabled());
  assert.equal(await page.evaluate(()=>window.robotWrites.some(p=>p[0]===8)),false,'Hand capture must never send a servo pose');
  assert(await page.evaluate(()=>window.robotWrites.some(p=>p[0]===11&&p[1]===4)));
@@ -27,5 +27,5 @@ try {
  assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('meccanoid.calibration'))),saved);
  await page.evaluate(()=>window.dropPoseReplies=false);await start();await page.locator('#disconnect').click();
  assert(await page.locator('#finishRangeCapture').isDisabled());assert.deepEqual(errors,[]);
- console.log('Hand capture passed: measured bounds, unchanged joints, read mode, motion lock, stop, timeout, disconnect, no motor writes.');
+ console.log('Hand capture passed: measured bounds, fixed neutral, unchanged joints, read mode, motion lock, stop, timeout, disconnect, no motor writes.');
 }finally{await browser.close();}

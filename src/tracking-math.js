@@ -12,6 +12,14 @@ const tracked=(world,image,i)=>visible(world?.[i])&&(!image?.length||inFrame(ima
 // Laptop-camera perspective compresses the upper part of a side-lift arc. Keep
 // down-to-horizontal linear, then expand overhead travel to the robot's range.
 const expandOverheadLift=value=>value>1?1+(value-1)*1.75:value;
+const imageArmLift=(image,s,e,w)=>{
+  if(!inFrame(image?.[s])||!inFrame(image?.[e]))return null;
+  const tip=inFrame(image?.[w])?image[w]:image[e],arm=flatDelta(tip,image[s]);
+  return length(arm)>.04?Math.atan2(Math.abs(arm.x),arm.y)/(Math.PI/2):null;
+};
+const ordered=(a,b)=>a.x<=b.x?[a,b]:[b,a];
+const roll=(a,b)=>{const [left,right]=ordered(a,b);return Math.atan2(right.y-left.y,right.x-left.x);};
+const angleDifference=(a,b)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));
 /** Landmarks use anatomical left/right. Mirroring the video CSS does not change their IDs. */
 export function bodySignals(world, image) {
   const signals={};
@@ -25,22 +33,27 @@ export function bodySignals(world, image) {
       if(!visible(world?.[e]))continue;
       const upper=unit(subtract(world[e],world[s]));
       if(!upper)continue;
-      signals[`${side}Lift`]=expandOverheadLift(Math.atan2(dot(upper,right)*sign,dot(upper,down))/(Math.PI/2));
-      signals[`${side}Swing`]=Math.atan2(dot(upper,forward),Math.max(0.05,dot(upper,down)))/(Math.PI/2);
+      let lift=expandOverheadLift(Math.atan2(dot(upper,right)*sign,dot(upper,down))/(Math.PI/2));
+      let swing=Math.atan2(dot(upper,forward),Math.max(0.05,dot(upper,down)))/(Math.PI/2);
+      const screenLift=imageArmLift(image,s,e,w);
+      if(Number.isFinite(screenLift)){
+        lift=Math.max(lift,screenLift);
+        if(screenLift>1)swing*=clamp(2-screenLift,0,1);
+      }
+      signals[`${side}Lift`]=lift;signals[`${side}Swing`]=swing;
       if(visible(world?.[w])){
         const lower=unit(subtract(world[w],world[e]));
         if(lower)signals[`${side}Elbow`]=Math.acos(clamp(dot(upper,lower),-1,1))/(Math.PI/2);
       }
     }
   }
-  if ([0,7,8].every(i=>visible(image?.[i]))) {
-    const ears=midpoint(image[7],image[8]);
-    const width=Math.abs(image[8].x-image[7].x);
-    if(width>0.015) {
-      signals.headTurn=clamp((image[0].x-ears.x)/width*2,-1,1);
-      const a=image[7].x < image[8].x ? image[7] : image[8];
-      const b=a===image[7]?image[8]:image[7];
-      signals.headTilt=clamp(Math.atan2(b.y-a.y,b.x-a.x)/(Math.PI/4),-1,1);
+  const facePair=[[7,8],[3,6],[2,5]].map(([a,b])=>visible(image?.[a])&&visible(image?.[b])?[image[a],image[b]]:null).filter(Boolean).sort((a,b)=>Math.abs(b[1].x-b[0].x)-Math.abs(a[1].x-a[0].x))[0];
+  if(facePair){
+    const width=Math.abs(facePair[1].x-facePair[0].x);
+    if(width>.015){
+      if(visible(image?.[0]))signals.headTurn=clamp((image[0].x-midpoint(...facePair).x)/width*4,-2,2);
+      const shoulderRoll=visible(image?.[11])&&visible(image?.[12])?roll(image[11],image[12]):0;
+      signals.headTilt=clamp(angleDifference(roll(...facePair),shoulderRoll)/(Math.PI/12),-2,2);
     }
   }
   return Object.keys(signals).length?signals:null;

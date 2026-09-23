@@ -172,7 +172,7 @@ export function setupStudio({robot,log,run,refresh,preview}) {
           motion.current=[...pose];motion.target=[...pose];renderPose();
           calibration.forEach((c,i)=>{
             const value=pose[c.slot];if(value<24||value>232)return;
-            const seen=rangeSamples[i];rangeSamples[i]=seen?{min:Math.min(seen.min,value),max:Math.max(seen.max,value),centre:seen.centre}:{min:value,max:value,centre:value};
+            const seen=rangeSamples[i];rangeSamples[i]=seen?{min:Math.min(seen.min,value),max:Math.max(seen.max,value)}:{min:value,max:value};
           });
           $('rangeCaptureState').textContent='Reading by hand · '+rangeSamples.map((r,i)=>`${JOINTS[i].label}: ${r?`${r.min}–${r.max}`:'no valid reading'}`).join(' · ');
           captureTimer=setTimeout(sample,200);
@@ -183,12 +183,11 @@ export function setupStudio({robot,log,run,refresh,preview}) {
   });
   action('finishRangeCapture',()=>{
     if(!capturing)throw new Error('Start range capture first');
-    const next=calibration.map((c,i)=>{
-      const r=rangeSamples[i];return r&&r.max-r.min>=10?{...c,min:r.min+4,max:r.max-4,centre:r.centre}:c;
-    });
-    const count=rangeSamples.filter(r=>r&&r.max-r.min>=10).length;
+    const usable=(r,c)=>r&&r.max-r.min>=10&&r.min+4<=c.centre&&r.max-4>=c.centre;
+    const next=calibration.map((c,i)=>usable(rangeSamples[i],c)?{...c,min:rangeSamples[i].min+4,max:rangeSamples[i].max-4}:c);
+    const count=rangeSamples.filter((r,i)=>usable(r,calibration[i])).length;
     calibration=validateCalibration(next);store('meccanoid.calibration',calibration);
-    endCapture(`Saved measured limits for ${count} joints with a four-unit safety margin. Joints moved less than 10 units kept their previous limits. Motion remains disabled.`);renderCalibration();
+    endCapture(`Saved measured limits for ${count} joints with a four-unit safety margin. The measured neutral stayed unchanged; incomplete sweeps kept their previous limits. Motion remains disabled.`);renderCalibration();
   });
   action('cancelRangeCapture',()=>endCapture('Capture discarded; previous limits retained.'));
   action('halt',halt);

@@ -83,6 +83,29 @@ test('camera expands compressed overhead lift while keeping horizontal at one',(
  world[14]={x:1+Math.sin(angle),y:Math.cos(angle),z:0,visibility:1};
  assert(bodySignals(world,[]).rightLift>1.99,'a camera-compressed overhead arm must reach full travel at 50% scale');
 });
+test('an on-screen hand above the head overrides a flattened depth estimate',()=>{
+ const world=Array.from({length:33},()=>({x:0,y:0,z:0,visibility:1}));
+ const image=Array.from({length:33},()=>({x:.5,y:.5,z:0,visibility:1}));
+ world[11]={x:-1,y:0,z:0,visibility:1};world[12]={x:1,y:0,z:0,visibility:1};
+ world[13]={x:-2,y:0,z:1,visibility:1};world[14]={x:2,y:0,z:1,visibility:1};
+ world[15]={x:-3,y:0,z:2,visibility:1};world[16]={x:3,y:0,z:2,visibility:1};
+ world[23]={x:-1,y:2,z:0,visibility:1};world[24]={x:1,y:2,z:0,visibility:1};
+ image[12]={x:.45,y:.6,z:0,visibility:1};image[14]={x:.43,y:.4,z:0,visibility:1};image[16]={x:.46,y:.1,z:0,visibility:1};
+ const signals=bodySignals(world,image);
+ assert(signals.rightLift>1.9,'wrist above the head must be interpreted as overhead');
+ assert(Math.abs(signals.rightSwing)<.2,'an overhead image must not remain a forward-only shoulder pose');
+});
+test('head tilt uses visible eyes when ears are hidden and reaches full range at 30 degrees',()=>{
+ const image=Array.from({length:33},()=>({x:0,y:0,z:0,visibility:0}));
+ const angle=Math.PI/6,width=.2,cx=.5,cy=.3;
+ image[3]={x:cx-Math.cos(angle)*width/2,y:cy-Math.sin(angle)*width/2,z:0,visibility:1};
+ image[6]={x:cx+Math.cos(angle)*width/2,y:cy+Math.sin(angle)*width/2,z:0,visibility:1};
+ image[0]={x:cx,y:cy+.05,z:0,visibility:1};
+ image[11]={x:.35,y:.6,z:0,visibility:1};image[12]={x:.65,y:.6,z:0,visibility:1};
+ const signals=bodySignals([],image);
+ assert(Math.abs(signals.headTilt-2)<1e-9);
+ assert.equal(signals.headTurn,0);
+});
 test('motion advances in small steps, preserves other joints and stops queued targets',async()=>{
  const r=new Robot(),m=new MotionController(r);await m.sync();const c=defaultCalibration().map(v=>({...v,enabled:false}));c[0].enabled=true;
  m.setTarget([150,...Array(7).fill(0)],c);await sleep(10);

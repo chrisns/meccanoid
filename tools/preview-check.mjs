@@ -19,9 +19,14 @@ try{
  await page.locator('#jointControls input[type=range]').nth(1).evaluate(el=>{el.value='200';el.dispatchEvent(new Event('input',{bubbles:true}));});await page.waitForTimeout(700);
  assert(!shot.equals(await page.locator('#robotPreview').screenshot()),'rendered robot changes with joint target');
  const jointBefore=(await pose())[0],jointButton=page.locator('#jointControls .joint-card').first().locator('button').nth(1);await jointButton.hover();await page.mouse.down();await page.waitForTimeout(360);await page.mouse.up();await page.waitForTimeout(150);assert((await pose())[0]-jointBefore>=8,'holding a joint button repeatedly moves it until release');
- await page.locator('#content').focus();await page.keyboard.down('ArrowUp');await page.waitForTimeout(1100);
- assert(await page.evaluate(()=>window.robotWrites.some(p=>p[0]===25&&p[1]===13)));assert.equal(await page.evaluate(()=>window.robotWrites.some(p=>p[0]===25&&p[1]===8)),false,'watchdog refresh keeps held movement running');
- await page.keyboard.up('ArrowUp');await page.waitForFunction(()=>window.robotWrites.some(p=>p[0]===25&&p[1]===8));const drives=await page.evaluate(()=>window.robotWrites.filter(p=>p[0]===25&&p[1]===13).length);await page.waitForTimeout(500);assert.equal(await page.evaluate(()=>window.robotWrites.filter(p=>p[0]===25&&p[1]===13).length),drives);
+ await page.locator('#content').focus();
+ for(let attempt=0;attempt<2;attempt++){
+  const beforeDrive=await page.evaluate(()=>window.robotWrites.filter(p=>p[0]===25&&p[1]===13).length);
+  await page.keyboard.down('ArrowUp');await page.waitForTimeout(1100);
+  assert(await page.evaluate(count=>window.robotWrites.filter(p=>p[0]===25&&p[1]===13).length>=count+2,beforeDrive),'held arrow resends movement while held');
+  const beforeStop=await page.evaluate(()=>window.robotWrites.filter(p=>p[0]===25&&p[1]===8).length);await page.keyboard.up('ArrowUp');await page.waitForFunction(count=>window.robotWrites.filter(p=>p[0]===25&&p[1]===8).length>count,beforeStop);
+ }
+ const drives=await page.evaluate(()=>window.robotWrites.filter(p=>p[0]===25&&p[1]===13).length);await page.waitForTimeout(500);assert.equal(await page.evaluate(()=>window.robotWrites.filter(p=>p[0]===25&&p[1]===13).length),drives);
  await page.locator('[data-view=play]').click();const forward=page.getByRole('button',{name:'Forward',exact:true});await forward.hover();await page.waitForTimeout(150);const stopsBefore=await page.evaluate(()=>window.robotWrites.filter(p=>p[0]===25&&p[1]===8).length);await page.mouse.down();await page.waitForTimeout(1000);assert.equal(await page.evaluate(()=>window.robotWrites.filter(p=>p[0]===25&&p[1]===8).length),stopsBefore,'held direction button stays active beyond the watchdog');await page.mouse.up();await page.waitForFunction(count=>window.robotWrites.filter(p=>p[0]===25&&p[1]===8).length>count,stopsBefore);
  await page.locator('[data-view=create]').click();const before=await page.evaluate(()=>window.robotWrites.filter(p=>p[0]===8).length);await page.locator('#poseName').fill('');await page.locator('#poseName').pressSequentially('qwertyuiop');await page.waitForTimeout(300);assert.equal(await page.evaluate(()=>window.robotWrites.filter(p=>p[0]===8).length),before,'typing does not move joints');
  const writesBeforeEscape=await page.evaluate(()=>window.robotWrites.filter(p=>p[0]===8).length);

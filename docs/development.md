@@ -1,6 +1,6 @@
 # Meccanoid G15KS control studio
 
-A JavaScript BLE library and local browser controller for the original MeccaBrain: lights, wheels, eight joints, camera mirroring, saved poses/sequences, built-in presets and a guided wiring test. The movement pad defaults to the physically verified forward/back/left/right routines for one second, with shorter durations available. Direct wheel speed control remains available separately. The BLE library has no runtime dependencies; camera tracking uses a pinned, locally served MediaPipe runtime/model. No account or cloud service is required.
+A JavaScript BLE library and local browser controller for the original MeccaBrain: lights, wheels, eight joints, camera mirroring, saved poses/sequences, built-in presets and a guided wiring test. Held movement buttons and arrow keys resend the physically verified forward/back/left/right routines at a bounded interval until release, then send STOP and zero wheel speed. Direct wheel speed control remains available separately. The BLE library has no runtime dependencies; camera tracking uses a pinned, locally served MediaPipe runtime/model. No account or cloud service is required.
 
 ## Run
 
@@ -31,8 +31,8 @@ The expected joint order comes from the original Android app. A wrong-component 
 ## Arms, head and mirroring
 
 1. Read the current pose. Put the robot in a comfortable supported stance first; pose bytes are not degrees.
-2. Capture that pose as neutral; this preserves existing travel limits. Manual sliders send immediately once motion is enabled, with bounded movement toward the target. The thumb keeps the requested target while the number displays the last measured/sent position.
-3. Use **Measure travel by hand → Start hand capture** to request read mode (4), disarm motion and poll positions. Support the arms and first confirm that a joint moves freely; cancel if it resists. Move each joint through comfortable travel without forcing hard stops, then **Finish capture**. This saves the starting neutral and limits inset four units from joints moved through at least ten units; untouched joints keep their settings. Read the pose again afterward.
+2. Manual sliders send immediately once motion is enabled, with bounded movement toward the target. The thumb keeps the requested target while the number displays the last measured/sent position. Neutral uses the physically measured G15KS values and is not captured from an arbitrary pose.
+3. Use **Measure travel by hand → Start hand capture** to request read mode (4), disarm motion and poll positions. Support the arms and first confirm that a joint moves freely; cancel if it resists. Move each joint through comfortable travel without forcing hard stops, then **Finish capture**. This updates limits inset four units from joints moved through at least ten units; untouched joints keep their settings. Read the pose again afterward.
 4. Check each joint using the system test or small ±4 nudges. Correct its slot, direction and limits in **Calibration** if this build differs. Changes save automatically. Defaults use the 19 September physical measurements with a four-unit safety margin; **Restore measured calibration** returns to them. The eight mappings must use unique slots.
 5. Connect, open Copy me and turn the camera on. The app reads the current pose, arms motion and begins tracking without another control. Hold a joint key to override tracking temporarily; release it to resume camera control.
 
@@ -111,4 +111,4 @@ This interactive session stays connected until `quit`. Commands: `status`, `pose
 
 The persistent CLI connection is deliberately not changed by web-app development. Release that connection before selecting the robot in the browser; only one controller should own it at a time.
 
-Browser regressions: `npm run test:controls` checks slider snap-back, neutral bounds, instant colour and hand-capture stop/timeout/disconnect behaviour using simulated BLE. `npm run test:browser` covers the broader UI and local camera inference. These do not verify physical motor clearance or servo release.
+Browser regressions: `npm run test:controls` checks slider snap-back, measured bounds with fixed neutral, instant colour and hand-capture stop/timeout/disconnect behaviour using simulated BLE. `npm run test:browser` covers the broader UI and local camera inference. These do not verify physical motor clearance or servo release.
