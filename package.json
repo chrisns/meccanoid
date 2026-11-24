@@ -27,7 +27,7 @@
     "three": "0.187.0"
   },
   "devDependencies": {
-    "@axe-core/playwright": "4.14.0",
+    "@axe-core/playwright": "4.14.1",
     "playwright": "1.65.1"
   },
   "license": "MIT",
